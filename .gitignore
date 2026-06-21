@@ -1,0 +1,38 @@
+# ========================
+# DIPENDENZE (Node/React)
+# ========================
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# ========================
+# BUILD E PRODUZIONE
+# ========================
+/tesi-frontend/build/
+/tesi-frontend/dist/
+/tesi-backend/dist/
+
+# ========================
+# SICUREZZA E CHIAVI
+# ========================
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+*.pem
+
+# ========================
+# SISTEMA OPERATIVO E IDE
+# ========================
+.DS_Store
+.AppleDouble
+.LSOverride
+.vscode/
+.idea/
+
+# ========================
+# LOGS E DATABASE LOCALI
+# ========================
+logs/
+*.log
