@@ -13,5 +13,16 @@ services:
       - couchdb_data:/opt/couchdb/data
     restart: unless-stopped
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: tesi-keycloak
+    command: start-dev
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
 volumes:
   couchdb_data:
