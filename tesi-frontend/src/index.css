@@ -1,0 +1,16 @@
+/* Importo il motore principale di Tailwind CSS */
+@import "tailwindcss";
+
+/* Sfrutto la nuova direttiva @theme per definire le variabili della mia tesi */
+@theme {
+  /* Imposto il colore primario usando lo stesso blu che avevo scelto in precedenza */
+  --color-primary: #1b81f5;
+}
+
+/* Imposto le regole base per l'intero body dell'applicazione */
+body {
+  font-family: "Wix Madefor Display", sans-serif;
+  background-color: #ffffff;
+  margin: 0;
+  padding: 0;
+}

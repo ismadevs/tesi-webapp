@@ -1,85 +1,73 @@
-import { Box, Typography, Button, Container } from '@mui/material';
-import LoginRoundedIcon from '@mui/icons-material/Login';
+import keycloakConfig from '../services/keycloak';
+import { LogIn } from 'lucide-react';
+import AppButton from '../components/AppButton';
 
-export default function LandingPage(){
-  const handleFakeLogin = () => {
-    console.log("Il tasto login è stato cliccato! In futuro aprirà Keycloak.");
+export default function LandingPage() {
+  
+  const handleLogin = () => {
+    // Avvio il processo di login verso Keycloak
+    keycloakConfig.login({
+      redirectUri: 'http://localhost:5173/home'
+    });
   };
 
   return (
-    // Box principale: è il contenitore "padre" di tutta la pagina. 
-    // minHeight: '100vh' assicura che occupi SEMPRE tutto lo schermo, anche se c'è poco testo.
-    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    // Contenitore "padre" di tutta la pagina. 
+    // min-h-screen assicura che occupi SEMPRE tutto lo schermo.
+    // flex e flex-col dispongono gli elementi in verticale (a colonna).
+    <div className="min-h-screen flex flex-col">
 
-      {/* Barra blu in alto: prende in automatico il colore 'primary.main' definito nel nostro theme.js */}
-      <Box sx={{ height: '40px', backgroundColor: 'primary.main', width: '100%' }} />
+      {/* Barra blu in alto: bg-primary pesca in automatico la variabile --color-primary 
+          che ho impostato nel file index.css. h-10 equivale a 40px. */}
+      <div className="h-10 bg-primary w-full"></div>
 
-      {/* Container: limita la larghezza massima (maxWidth="xl") e centra tutto. 
-          flexGrow: 1 spinge il container a occupare tutto lo spazio bianco rimasto sotto la barra blu. */}
-      <Container maxWidth="xl" sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+      {/* Container: limita la larghezza massima (max-w-7xl) e centra tutto (mx-auto). 
+          flex-grow spinge il container a occupare tutto lo spazio bianco rimasto sotto la barra blu. */}
+      <div className="max-w-7xl mx-auto w-full px-4 flex-grow flex flex-col">
 
         {/* BLOCCO CENTRALE: I titoli. 
-            flexGrow: 1 qui dentro serve a spingere il blocco dei tuoi dati (il footer) verso il basso, 
+            flex-grow qui dentro serve a spingere il blocco dei miei dati (il footer) verso il basso, 
             mantenendo questo testo perfettamente al centro dello schermo. */}
-        <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
+        <div className="flex-grow flex flex-col justify-center items-center text-center">
           
-          {/* component="h1" dice al browser (e a Google) che questo è il titolo principale.
-              variant="h2" usa le dimensioni grafiche di un h2 di Material UI. */}
-          <Typography 
-            variant="h2" 
-            component="h1" 
-            sx={{ mb: 4, color: '#000', fontWeight: 700 }} // fontWeight forzato nel sx per massima priorità
-          >
+          {/* text-5xl e text-6xl su schermi medi (md:) replicano la grandezza dell'h2 di MUI.
+              font-bold sostituisce il fontWeight: 700. */}
+          <h1 className="mb-4 text-black font-bold text-5xl md:text-6xl tracking-tight">
             Tesi di Laurea Triennale
-          </Typography>
+          </h1>
           
-          <Typography 
-            variant="h4" 
-            color="text.secondary" 
-            sx={{ fontWeight: 500 }} 
-          >
+          {/* text-gray-500 replica il color="text.secondary". font-medium è il fontWeight: 500. */}
+          <h2 className="font-medium text-gray-500 text-2xl md:text-3xl">
             Sviluppo di un'infrastruttura Cloud-Native per l'orchestrazione di risorse
-          </Typography>
-        </Box>
+          </h2>
+        </div>
 
         {/* BLOCCO FOOTER: Dati a sinistra e Bottone a destra.
-            justifyContent: 'space-between' butta i dati tutti a sinistra e il bottone tutto a destra. */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', pb: 6, px: 2 }}>
+            flex e justify-between buttano i dati tutti a sinistra e il bottone tutto a destra.
+            items-end allinea tutto sul fondo. pb-10 mi dà il margine inferiore. */}
+        <div className="flex justify-between items-end pb-10">
 
           {/* Dati dello studente */}
-          <Box sx={{ textAlign: 'left' }}>
-            <Typography 
-              variant="h6" 
-              color="text.secondary"
-              sx={{ fontWeight: 700 }} // nome e matricola in grassetto
-            >
+          <div className="text-left">
+            <p className="font-bold text-gray-600 text-lg md:text-xl">
               Ismaile Maataoui - Matricola: 0000975453
-            </Typography>
-            <Typography 
-              variant="h6" 
-              color="text.secondary"
-              sx={{ fontWeight: 400, }} // Il corso e l'università più leggeri
-            >
+            </p>
+            <p className="font-normal text-gray-600 text-lg md:text-xl">
               Ingegneria Informatica (L) - Università di Bologna
-            </Typography>
-          </Box>
+            </p>
+          </div>
 
-          {/* Tasto Login 
-              disableElevation: rimuove l'ombra predefinita di Material UI.
-              textTransform: 'none' evita che il testo del bottone diventi TUTTO MAIUSCOLO di default. */}
-          <Button
-            variant="contained"
-            size="large"
-            disableElevation
-            onClick={handleFakeLogin}
-            endIcon={<LoginRoundedIcon />}
-            sx={{ py: 1.5, px: 4, fontSize: '1.2rem', borderRadius: '10px', textTransform: 'none', fontWeight: 600 }}
+          {/* Mantengo il mio AppButton, ma tieni presente che nel prossimo step 
+              dovremo tradurre anche lui da MUI a Tailwind per completare la transizione! */}
+          <AppButton
+            onClick={handleLogin}
+            icon={<LogIn size={24} />}
           >
             Accesso Piattaforma
-          </Button>
+          </AppButton>
 
-        </Box>
-      </Container>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 }
