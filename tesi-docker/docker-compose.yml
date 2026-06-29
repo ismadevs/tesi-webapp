@@ -23,9 +23,12 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      # Questa riga inietta il tema locale dentro il container di Keycloak
       - ./tesi-theme:/opt/keycloak/themes/tesi-theme
+      # Salvo il database interno di Keycloak per non perdere Realm e Utenti
+      - keycloak_data:/opt/keycloak/data
     restart: unless-stopped
 
 volumes:
   couchdb_data:
+  # Dichiaro il volume persistente per Keycloak
+  keycloak_data:
