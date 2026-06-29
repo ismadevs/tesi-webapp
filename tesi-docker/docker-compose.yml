@@ -22,6 +22,9 @@ services:
       - KEYCLOAK_ADMIN_PASSWORD=admin
     ports:
       - "8080:8080"
+    volumes:
+      # Questa riga inietta il tema locale dentro il container di Keycloak
+      - ./tesi-theme:/opt/keycloak/themes/tesi-theme
     restart: unless-stopped
 
 volumes:

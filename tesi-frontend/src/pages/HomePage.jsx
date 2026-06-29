@@ -56,7 +56,7 @@ export default function HomePage() {
               onClick={() => setActiveTab('home')}
               className={getSidebarItemStyle('home')}
             >
-              <Cloud strokeWidth={activeTab === 'home' ? 2.5 : 2} size={26} />
+              <Cloud strokeWidth={activeTab === 'home' ? 2 : 2} size={26} />
               <span>Home</span>
             </button>
 
@@ -64,7 +64,7 @@ export default function HomePage() {
               onClick={() => setActiveTab('risorse')}
               className={getSidebarItemStyle('risorse')}
             >
-              <DatabasePlus strokeWidth={activeTab === 'risorse' ? 2.5 : 2} size={26} />
+              <DatabasePlus strokeWidth={activeTab === 'risorse' ? 2 : 2} size={26} />
               <span>Risorse</span>
             </button>
 
@@ -72,7 +72,7 @@ export default function HomePage() {
               onClick={() => setActiveTab('esperimenti')}
               className={getSidebarItemStyle('esperimenti')}
             >
-              <Boxes strokeWidth={activeTab === 'esperimenti' ? 2.5 : 2} size={26} />
+              <Boxes strokeWidth={activeTab === 'esperimenti' ? 2 : 2} size={26} />
               <span>Esperimenti</span>
             </button>
           </nav>
@@ -94,10 +94,10 @@ export default function HomePage() {
               shadow-sm: applica una piccolissima ombra che dà profondità. */}
           <button 
             onClick={handleLogout} 
-            className="px-8 py-3 rounded-lg font-semibold text-lg transition-all duration-200 flex items-center justify-center gap-2 bg-red-500 text-white hover:bg-red-600 shadow-sm cursor-pointer"
+            className="px-4.5 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-red-500 text-white hover:bg-red-600 shadow-sm cursor-pointer"
           >
             <span>Logout</span>
-            <LogOut size={20} strokeWidth={2.5} />
+            <LogOut size={16} strokeWidth={2.5} />
           </button>
         </header>
 

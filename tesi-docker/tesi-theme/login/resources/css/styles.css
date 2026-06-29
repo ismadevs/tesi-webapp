@@ -1,0 +1,129 @@
+/* 1. Font Wix Madefor Display */
+@import url('https://fonts.googleapis.com/css2?family=Wix+Madefor+Display:wght@400;500;600;700;800&display=swap');
+
+body {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    font-family: 'Wix Madefor Display', sans-serif !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 100vh !important;
+    margin: 0 !important;
+}
+
+#kc-header-wrapper {
+    display: none !important;
+}
+
+/* 2. CARD PRINCIPALE */
+.login-pf-page .card-pf, .pf-c-login__main {
+    background-color: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 1rem !important;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025) !important;
+    width: 30vw !important;
+    min-width: 420px !important;
+    max-width: 600px !important;
+    margin: 0 !important;
+    padding: 3rem 3.5rem !important;
+    box-sizing: border-box !important;
+}
+
+/* 3. TITOLO */
+#kc-page-title {
+    font-size: 2.2rem !important;
+    font-weight: 800 !important;
+    color: #111827 !important;
+    text-align: left !important;
+    margin-top: 0 !important;
+    margin-bottom: 2rem !important;
+    letter-spacing: -0.025em !important;
+    display: block !important;
+}
+
+/* ETICHETTE */
+.pf-c-form__label-text {
+    font-weight: 600 !important;
+    font-size: 0.95rem !important;
+    color: #374151 !important;
+    display: block !important;
+    text-align: left !important;
+    margin-bottom: 0.5rem !important;
+}
+
+/* 4. TUTTI GLI INPUT (Username e Password unificati per massima pulizia) */
+input.pf-c-form-control {
+    width: 100% !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 0.5rem !important;
+    padding: 0.875rem 1rem !important;
+    font-size: 1rem !important;
+    font-family: inherit !important;
+    color: #111827 !important;
+    background-color: #ffffff !important;
+    box-sizing: border-box !important;
+    margin-bottom: 1.25rem !important;
+    transition: all 0.2s ease-in-out !important;
+}
+
+input.pf-c-form-control:focus {
+    border-color: #5c8df6 !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(92, 141, 246, 0.15) !important;
+}
+
+/* Nascondo il bottone dell'occhio in modo definitivo */
+.pf-c-input-group button {
+    display: none !important;
+}
+
+/* Assicuro che il box che conteneva l'occhio mantenga la larghezza corretta */
+.pf-c-input-group {
+    display: block !important;
+    width: 100% !important;
+}
+
+/* 5. BOTTONE LOGIN */
+input.pf-c-button.pf-m-primary, button.pf-c-button.pf-m-primary, .pf-c-button.pf-m-primary {
+    background-color: #5c8df6 !important;
+    background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4'/%3E%3Cpolyline points='10 17 15 12 10 7'/%3E%3Cline x1='15' y1='12' x2='3' y2='12'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 1.5rem center !important;
+    background-size: 1.25rem !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 0.5rem !important;
+    padding: 0.875rem !important;
+    padding-right: 3rem !important;
+    font-size: 1.125rem !important;
+    font-weight: 600 !important;
+    font-family: inherit !important;
+    width: 100% !important;
+    cursor: pointer !important;
+    transition: background-color 0.2s !important;
+    margin-top: 0.5rem !important; 
+}
+
+input.pf-c-button.pf-m-primary:hover, button.pf-c-button.pf-m-primary:hover {
+    background-color: #4a75cc !important;
+}
+
+/* LINK "Forgot password?" */
+.login-pf-page .login-pf-settings {
+    display: flex !important;
+    justify-content: flex-start !important;
+    margin-top: -0.5rem !important;
+    margin-bottom: 1.5rem !important;
+}
+
+.login-pf-page .login-pf-settings a {
+    color: #6b7280 !important;
+    font-size: 0.9rem !important;
+    font-weight: 500 !important;
+    text-decoration: none !important;
+}
+
+.login-pf-page .login-pf-settings a:hover {
+    color: #5c8df6 !important;
+}
