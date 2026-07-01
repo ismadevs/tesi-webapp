@@ -1,14 +1,19 @@
 import { useState } from 'react';
 import keycloakConfig from '../services/keycloak';
-import { LogOut, Cloud, DatabasePlus, Boxes } from 'lucide-react';
+import { LogOut, CloudUpload, DatabasePlus, Boxes } from 'lucide-react';
 
 export default function HomePage() {
   // Mantengo lo stato che mi permette di sapere quale sezione è attualmente visualizzata
   const [activeTab, setActiveTab] = useState('home');
 
   const handleLogout = () => {
-    // Chiudo la sessione lato Keycloak
-    keycloakConfig.logout();
+    // Rimuovo il flag del benvenuto così al prossimo login riapparirà il toast verde
+    sessionStorage.removeItem("hasSeenWelcome");
+    // Diciamo a Keycloak di riportarci direttamente sulla root ("/") dopo il logout.
+    // In questo modo evitiamo di atterrare su /home da sloggati.
+    keycloakConfig.logout({
+      redirectUri: window.location.origin,
+    });
   };
 
   const getSidebarItemStyle = (tabName) => {
@@ -56,24 +61,24 @@ export default function HomePage() {
               onClick={() => setActiveTab('home')}
               className={getSidebarItemStyle('home')}
             >
-              <Cloud strokeWidth={activeTab === 'home' ? 2 : 2} size={26} />
+              <CloudUpload strokeWidth={activeTab === 'home' ? 2 : 2} size={26} />
               <span>Home</span>
             </button>
 
             <button 
-              onClick={() => setActiveTab('risorse')}
-              className={getSidebarItemStyle('risorse')}
+              onClick={() => setActiveTab('resources')}
+              className={getSidebarItemStyle('resources')}
             >
-              <DatabasePlus strokeWidth={activeTab === 'risorse' ? 2 : 2} size={26} />
-              <span>Risorse</span>
+              <DatabasePlus strokeWidth={activeTab === 'resources' ? 2 : 2} size={26} />
+              <span>Resources</span>
             </button>
 
             <button 
-              onClick={() => setActiveTab('esperimenti')}
-              className={getSidebarItemStyle('esperimenti')}
+              onClick={() => setActiveTab('simulations')}
+              className={getSidebarItemStyle('simulations')}
             >
-              <Boxes strokeWidth={activeTab === 'esperimenti' ? 2 : 2} size={26} />
-              <span>Esperimenti</span>
+              <Boxes strokeWidth={activeTab === 'simulations' ? 2 : 2} size={26} />
+              <span>Simulations</span>
             </button>
           </nav>
 
@@ -94,9 +99,9 @@ export default function HomePage() {
               shadow-sm: applica una piccolissima ombra che dà profondità. */}
           <button 
             onClick={handleLogout} 
-            className="px-4.5 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-red-500 text-white hover:bg-red-600 shadow-sm cursor-pointer"
+            className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-white text-black border border-gray-200 hover:bg-red-500 hover:text-white hover:border-white cursor-pointer"
           >
-            <span>Logout</span>
+            <span>Sign Out</span>
             <LogOut size={16} strokeWidth={2.5} />
           </button>
         </header>
@@ -113,62 +118,49 @@ export default function HomePage() {
               {/* text-4xl md:text-5xl: testo grande che diventa ancora più grande (5xl) da schermi medi in su (md:).
                   tracking-tight: avvicina leggermente le lettere (stile molto moderno, alla Apple). */}
               <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-12">
-                Panoramica
+                Overview
               </h2>
               
               {/* leading-relaxed: aumenta lo spazio tra le righe per far respirare la lettura. */}
               <p className="text-xl leading-relaxed text-gray-700">
-                Questa web application è progettata per supportare ricercatori 
-                nella gestione delle risorse computazionali e nella configurazione
-                di esperimenti scientifici. Nella sezione{' '}
-                
-                {/* 
-                  Qui trasformo la parola in un bottone in linea.
-                  onClick={...}: simula il click nella sidebar.
-                  hover:underline: aggiunge la classica sottolineatura da link al passaggio del mouse. 
-                */}
+                This web application is designed to support researchers in managing computational 
+                resources and configuring scientific experiments. In the{' '}
                 <button 
-                  onClick={() => setActiveTab('risorse')}
-                  className="text-primary font-bold hover: cursor-pointer transition-colors"
+                  onClick={() => setActiveTab('resources')}
+                  className="text-primary font-bold cursor-pointer transition-colors"
                 >
-                  Risorse
+                  Resources
                 </button>
-                
-                {' '}è possibile censire e 
-                amministrare i server disponibili, definendone le caratteristiche hardware e 
-                software, come capacità di calcolo, memoria e tecnologie di hosting. La 
-                sezione{' '}
-                
-                {/* Stessa cosa per il secondo link */}
+                {' '}section, it is possible to catalog and administer available servers, defining 
+                their hardware and software characteristics, such as computational capacity, memory, 
+                and hosting technologies. The{' '}
                 <button 
-                  onClick={() => setActiveTab('esperimenti')}
-                  className="text-primary font-bold hover: cursor-pointer transition-colors"
+                  onClick={() => setActiveTab('simulations')}
+                  className="text-primary font-bold cursor-pointer transition-colors"
                 >
-                  Esperimenti
+                  Simulations
                 </button>
-                
-                {' '}consente invece di creare e gestire scenari di calcolo, 
-                associando una o più risorse agli esperimenti per realizzare configurazioni 
-                riproducibili e facilmente monitorabili. La piattaforma semplifica 
-                l'organizzazione dell'infrastruttura e costituisce la base per l'esecuzione 
-                automatizzata dei carichi di lavoro in ambienti cloud-native.
+                {' '}section allows you to create and manage computing scenarios, associating one or 
+                more resources to the experiments to achieve reproducible and easily monitored 
+                configurations. The platform simplifies infrastructure organization and constitutes 
+                the foundation for automated execution of workloads in cloud-native environments.
               </p>
             </div>
           )}
 
-          {activeTab === 'risorse' && (
+          {activeTab === 'resources' && (
             <div className="animate-in fade-in duration-300">
                <h2 className="text-3xl font-bold tracking-tight text-gray-800 mb-12">
-                 Sezione Risorse
+                 Resources Section
                </h2>
                <p>Work in progress...</p>
             </div>
           )}
 
-          {activeTab === 'esperimenti' && (
+          {activeTab === 'simulations' && (
             <div className="animate-in fade-in duration-300">
                <h2 className="text-3xl font-bold tracking-tight text-gray-800 mb-12">
-                 Sezione Esperimenti
+                 Simulations Section
                </h2>
                <p>Work in progress...</p>
             </div>

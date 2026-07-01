@@ -8,6 +8,12 @@ import keycloakConfig from './services/keycloak';
 import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
 
+// Importo il componente per proteggere le pagine private della webapp
+import ProtectedRoute from "./components/ProtectedRoute";
+
+// Importo il componente toast
+import { toast } from 'react-hot-toast';
+
 function App() {
   // Uso questo stato per capire se Keycloak ha finito di parlare col server. 
   // Finché è false, tengo lo schermo in attesa.
@@ -38,6 +44,26 @@ function App() {
         setIsAuthenticated(authenticated);
         // ...e sblocco l'interfaccia impostando isInitialized a true.
         setIsInitialized(true);
+
+        // --- NUOVA LOGICA: TOAST DI BENVENUTO ---
+        // Se l'utente risulta autenticato, controllo se gli ho già dato il benvenuto in questa sessione
+        if (authenticated) {
+          const hasSeenWelcome = sessionStorage.getItem("hasSeenWelcome");
+          
+          // Se NON c'è il flag nel sessionStorage, significa che ha appena fatto il login effettivo
+          if (!hasSeenWelcome) {
+            toast.success("Welcome back! Sign in successful.", {
+              id: "login-success", // ID univoco per evitare duplicati causati da React
+              position: "bottom-center",
+              style: {
+                minWidth: "350px",
+                fontSize: "16px",
+              },
+            });
+            // Salvo il flag così ai prossimi F5 o ricaricamenti pagina il toast non disturberà più
+            sessionStorage.setItem("hasSeenWelcome", "true");
+          }
+        }
       })
       .catch((error) => {
         // Se c'è un errore grave di rete (es. il container di Keycloak è spento) lo stampo
@@ -82,9 +108,9 @@ function App() {
             // Proteggo questa pagina:
             // Se l'utente HA il token (isAuthenticated), gli permetto di renderizzare la HomePage.
             // Se tenta di scrivere "/home" a mano ma non ha fatto il login, lo rispedisco subito alla "/"
-            isAuthenticated 
-              ? <HomePage /> 
-              : <Navigate to="/" replace />
+            <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <HomePage />
+            </ProtectedRoute>
           } 
         />
 

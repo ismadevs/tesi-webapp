@@ -57,7 +57,7 @@ export default function LandingPage() {
             onClick={handleLogin}
             className="px-8 py-3 rounded-lg font-semibold text-lg transition-all duration-200 flex items-center justify-center gap-2 bg-primary text-white hover:bg-blue-600 shadow-sm cursor-pointer"
           >
-            Accesso Piattaforma
+            Sign In
             <LogIn size={24} />
           </button>
         </div>

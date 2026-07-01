@@ -86,7 +86,7 @@ input.pf-c-form-control:focus {
 
 /* 5. BOTTONE LOGIN */
 input.pf-c-button.pf-m-primary, button.pf-c-button.pf-m-primary, .pf-c-button.pf-m-primary {
-    background-color: #5c8df6 !important;
+    background-color: #1b81f5 !important;
     background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4'/%3E%3Cpolyline points='10 17 15 12 10 7'/%3E%3Cline x1='15' y1='12' x2='3' y2='12'/%3E%3C/svg%3E") !important;
     background-repeat: no-repeat !important;
     background-position: right 1.5rem center !important;
@@ -106,7 +106,7 @@ input.pf-c-button.pf-m-primary, button.pf-c-button.pf-m-primary, .pf-c-button.pf
 }
 
 input.pf-c-button.pf-m-primary:hover, button.pf-c-button.pf-m-primary:hover {
-    background-color: #4a75cc !important;
+    background-color: #1B56F4 !important;
 }
 
 /* LINK "Forgot password?" */
@@ -125,5 +125,5 @@ input.pf-c-button.pf-m-primary:hover, button.pf-c-button.pf-m-primary:hover {
 }
 
 .login-pf-page .login-pf-settings a:hover {
-    color: #5c8df6 !important;
+    color: #3182ce !important;
 }
