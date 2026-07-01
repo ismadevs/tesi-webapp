@@ -27,6 +27,20 @@ services:
       # Salvo il database interno di Keycloak per non perdere Realm e Utenti
       - keycloak_data:/opt/keycloak/data
     restart: unless-stopped
+  
+  webapp:
+    image: node:22-alpine
+    container_name: tesi-webapp
+    working_dir: /app
+    volumes:
+      - ../tesi-frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install && npm run dev -- --host"
+    depends_on:
+      - keycloak
+    restart: unless-stopped
 
 volumes:
   couchdb_data:

@@ -13,13 +13,14 @@ function ProtectedRoute({ isAuthenticated, children }) {
     if (!isAuthenticated) {
       hasShownToast.current = true;
       toast.error(
-        "Please sign in before accessing the application.",
+        "Please sign in before accessing the application!",
         {
           id: "auth-required",
-          position: "bottom-center",
+          position: "top-center",
           style: {
             minWidth: "420px",
             fontSize: "16px",
+            margin: "60px",
           },
         }
       );

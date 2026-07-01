@@ -52,12 +52,13 @@ function App() {
           
           // Se NON c'è il flag nel sessionStorage, significa che ha appena fatto il login effettivo
           if (!hasSeenWelcome) {
-            toast.success("Welcome back! Sign in successful.", {
+            toast.success("Sign in successful!", {
               id: "login-success", // ID univoco per evitare duplicati causati da React
-              position: "bottom-center",
+              position: "top-center",
               style: {
-                minWidth: "350px",
+                minWidth: "240px",
                 fontSize: "16px",
+                margin: "30px",
               },
             });
             // Salvo il flag così ai prossimi F5 o ricaricamenti pagina il toast non disturberà più

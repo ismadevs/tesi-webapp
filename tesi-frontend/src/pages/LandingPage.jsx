@@ -55,7 +55,7 @@ export default function LandingPage() {
 
           <button
             onClick={handleLogin}
-            className="px-8 py-3 rounded-lg font-semibold text-lg transition-all duration-200 flex items-center justify-center gap-2 bg-primary text-white hover:bg-blue-600 shadow-sm cursor-pointer"
+            className="px-5 py-2 rounded-lg font-semibold text-lg transition-all duration-200 flex items-center justify-center gap-2 bg-white text-black border border-gray-200 hover:bg-primary hover:text-white hover:border-white cursor-pointer"
           >
             Sign In
             <LogIn size={24} />
