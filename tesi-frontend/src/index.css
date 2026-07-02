@@ -14,3 +14,17 @@ body {
   margin: 0;
   padding: 0;
 }
+
+/* ==========================================
+   CLASSI DI UTILITÀ PERSONALIZZATE
+   ========================================== */
+@layer utilities {
+  /* Nasconde visivamente la barra di scorrimento ma mantiene la funzionalità di scroll */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;  /* Per Internet Explorer e vecchi Edge */
+    scrollbar-width: none;     /* Per Firefox */
+  }
+}

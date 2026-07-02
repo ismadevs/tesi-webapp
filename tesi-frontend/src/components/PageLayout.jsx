@@ -1,51 +1,54 @@
-// Importiamo i due "mattoncini" visivi che compongono la nostra cornice fissa.
 import Sidebar from './Sidebar';
 import Header from './Header';
 
-// La prop { children } è il segreto di questo componente.
-// Quando in un altro file scriverai <PageLayout> <h1>Ciao</h1> </PageLayout>,
-// React prenderà l'intero <h1>Ciao</h1> e lo infilerà automaticamente dentro la variabile 'children'.
-export default function PageLayout({ children }){
+// Riceviamo 3 props:
+// 1. children: Il contenuto specifico della pagina (es. la TopBar e le Card).
+// 2. topPadding: Usa "pt-35" di default (per la Home), ma può essere sovrascritto (es. "pt-8" in Resources).
+// 3. layoutClass: Gestisce lo scroll. Di base permette lo scroll ("overflow-y-auto"), ma in Resources lo blocchiamo.
+export default function PageLayout({ children, topPadding = "pt-35", layoutClass = "pb-20 overflow-y-auto" }){
   return (
-    // CONTENITORE PADRE GLOBALE
-    // min-h-screen: Impone che lo sfondo bianco copra sempre almeno il 100% dell'altezza dello schermo, 
-    //               anche se la pagina ha pochissimo testo.
-    // flex: Trasforma questo div in un contenitore flessibile orizzontale. 
-    //       Questo è ciò che permette alla Sidebar e al <main> di stare uno di fianco all'altro.
-    <div className="min-h-screen flex bg-white text-black">
+    // ==========================================
+    // LIVELLO 1: IL CONTENITORE GLOBALE
+    // ==========================================
+    // h-screen: Inchioda l'altezza totale esattamente alla dimensione della finestra del browser.
+    // overflow-hidden: Il "muro di cinta". Impedisce fisicamente al browser di mostrare la barra 
+    //                  di scorrimento generale, a prescindere da quanto siano lunghi i contenuti interni.
+    <div className="h-screen flex bg-white text-black overflow-hidden">
       
-      {/* LA CORNICE SINISTRA */}
-      {/* Inseriamo la Sidebar. Essendo il primo figlio del contenitore 'flex', 
-          si posizionerà naturalmente a sinistra. */}
+      {/* La Sidebar si prende la sua larghezza fissa e sta ferma a sinistra */}
       <Sidebar />
 
-      {/* L'AREA DESTRA (Tutto lo spazio rimanente) */}
-      {/* flex-1: È un comando potentissimo di Tailwind. Dice a questo <main>: 
-                  "Prenditi tutto lo spazio orizzontale che la Sidebar ha lasciato libero".
-          flex flex-col: Trasforma a sua volta questo <main> in un contenitore flessibile, 
-                         ma stavolta in verticale (column). Così Header starà sopra e il contenuto sotto. */}
-      <main className="flex-1 flex flex-col">
+      {/* ==========================================
+          LIVELLO 2: LA COLONNA DESTRA (Header + Contenuto)
+          ========================================== */}
+      {/* flex-1: Si allarga per occupare tutto lo spazio orizzontale rimasto.
+          flex-col: Dispone l'Header in alto e il contenuto sotto.
+          min-h-0: L'ANTIDOTO AL BUG DI FLEXBOX. Di default, Flexbox cerca di espandersi 
+                   per contenere i suoi figli. Con min-h-0 gli imponiamo di rispettare i limiti 
+                   imposti dal genitore (h-screen), costringendolo a non esplodere verso il basso. */}
+      <main className="flex-1 flex flex-col overflow-hidden min-h-0">
         
-        {/* LA CORNICE ALTA */}
-        {/* L'Header si posizionerà automaticamente in cima a questa colonna destra. */}
+        {/* L'Header occupa i suoi pixel in alto e resta fermo */}
         <Header />
 
-        {/* IL BUCO DELLA SERRATURA (Il contenitore del contenuto dinamico) */}
-        {/* max-w-5xl: Limita la larghezza massima (circa 1024px) per evitare che il testo 
-                       diventi lungo chilometri sui monitor ultra-wide (pessimo per la leggibilità).
-            w-full: Fino a quando non raggiunge la larghezza massima, occupa tutto lo spazio.
-            mx-auto: margin-x auto. Calcola automaticamente il margine destro e sinistro per CENTRARE questo div.
-            px-1: Un piccolissimo padding orizzontale (4px) per non far appiccicare il testo ai bordi sui display piccoli.
-            mt-20 e pb-20: Margine sopra (80px) e padding sotto (80px) per far respirare il contenuto rispetto all'Header e al fondo pagina. */}
-        <div className="max-w-5xl w-full mx-auto px-1 pb-20 mt-20">
+        {/* ==========================================
+            LIVELLO 3: IL CONTENITORE DINAMICO (Il "Buco della Serratura")
+            ========================================== */}
+        {/* max-w-6xl w-full mx-auto: Centrano il contenuto e gli danno una larghezza massima.
+            flex-1: Riempi tutto lo spazio verticale rimasto sotto l'Header.
+            min-h-0: Stesso antidoto di prima, impedisce a questo div di ingrandirsi all'infinito.
+            
+            LA SCELTA DEL PADDING (${topPadding}): 
+            Abbiamo sostituito 'margin-top' con 'padding-top'. 
+            Il margine (margin) crea spazio spingendo fisicamente il box in basso, bucando i confini dello schermo. 
+            Il padding, invece, schiaccia il contenuto verso l'interno, mantenendo intatte le pareti del nostro contenitore! */}
+        <div className={`max-w-6xl w-full mx-auto px-1 flex-1 flex flex-col min-h-0 ${topPadding} ${layoutClass}`}>
           
-          {/* LA MAGIA */}
-          {/* Qui viene "iniettato" il codice specifico della pagina che sta usando questo Layout.
-              Se sei su /home, qui ci sarà il testo di benvenuto.
-              Se sei su /resources, qui apparirà la tua futura tabella. */}
+          {/* Qui React inietta la tua pagina vera e propria */}
           {children}
           
         </div>
+        
       </main>
     </div>
   );
