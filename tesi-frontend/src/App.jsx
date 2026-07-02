@@ -4,15 +4,17 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 // Importo la configurazione centralizzata di Keycloak che ho creato nel file di servizio
 import keycloakConfig from './services/keycloak';
 
+// Importo il componente toast
+import { toast } from 'react-hot-toast';
+
 // Importo le schermate (pagine) della mia applicazione
 import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
+import ResourcesPage from './pages/Resources/ResourcesPage';
+import SimulationsPage from './pages/Simulations/SimulationsPage';
 
 // Importo il componente per proteggere le pagine private della webapp
 import ProtectedRoute from "./components/ProtectedRoute";
-
-// Importo il componente toast
-import { toast } from 'react-hot-toast';
 
 function App() {
   // Uso questo stato per capire se Keycloak ha finito di parlare col server. 
@@ -113,6 +115,26 @@ function App() {
               <HomePage />
             </ProtectedRoute>
           } 
+        />
+
+        {/* NUOVA ROTTA PRIVATA (URL: /resources) */}
+        <Route
+          path="/resources"
+          element={
+            <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <ResourcesPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ROTTA PRIVATA (URL: /simulations) */}
+        <Route
+          path="/simulations"
+          element={
+            <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <SimulationsPage />
+            </ProtectedRoute>
+          }
         />
 
       </Routes>
