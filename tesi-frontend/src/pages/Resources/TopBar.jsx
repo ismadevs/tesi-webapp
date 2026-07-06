@@ -32,9 +32,10 @@ export default function TopBar() {
           {/* Add Button */}
           <button
             onClick={() => console.log('Cliccato Add Site!')}
-            className="flex items-center justify-center gap-2 bg-primary text-white px-5 py-2 rounded-lg font-semibold hover:bg-blue-600 transition-colors cursor-pointer"
+            className="flex items-center justify-center gap-2 bg-primary text-white px-2 pr-5 pl-3 py-2 rounded-lg font-semibold hover:bg-blue-600 transition-colors cursor-pointer"
           >
-            <span>Add Site</span>
+            <Plus size={16} strokeWidth={2.5} />
+            <span>New Site</span>
           </button>
           
         </div>
