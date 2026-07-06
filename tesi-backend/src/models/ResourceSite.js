@@ -1,4 +1,4 @@
-class ResourceSite{
+export default class ResourceSite{
   constructor({
     id,
     name,
@@ -39,5 +39,3 @@ class ResourceSite{
     this.lastPing = lastPing || new Date().toISOString();
   }
 }
-
-module.exports = ResourceSite;

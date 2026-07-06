@@ -1,5 +1,5 @@
 // models/mockDatabase.js
-const ResourceSite = require('./ResourceSite');
+import ResourceSite from './ResourceSite.js';
 
 // Inizializziamo il database in memoria con ID interi
 let mockSites = [
@@ -65,4 +65,4 @@ let mockSites = [
   })
 ];
 
-module.exports = mockSites;
+export default mockSites;

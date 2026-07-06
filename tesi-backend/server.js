@@ -16,6 +16,9 @@ import dotenv from 'dotenv';
 // e sia stato emesso da Keycloak.
 import { checkJwt } from './src/middlewares/auth.middleware.js';
 
+// IMPORTA LE ROTTE DELLE RISORSE
+import resourceRoutes from './src/routes/resourceRoutes.js';
+
 // Carica tutte le variabili presenti nel file .env
 // all'interno dell'oggetto process.env.
 dotenv.config();
@@ -36,6 +39,14 @@ app.use(cors());
 // Abilita il parsing automatico del body delle richieste JSON.
 // Senza questo middleware req.body sarebbe undefined.
 app.use(express.json());
+
+// ===============================
+// REGISTRAZIONE ROTTE
+// ===============================
+
+// 2. MONTA IL ROUTER DELLE RISORSE
+// Tutte le richieste che iniziano per /api/resources verranno gestite da resourceRoutes
+app.use('/api/resources', resourceRoutes);
 
 
 // ===============================
