@@ -1,7 +1,7 @@
 // Importiamo le singole funzioni destrutturate dal Service.
 // Il Controller non ha idea di come vengano recuperati o salvati i dati nel database,
 // il suo compito è semplicemente delegare la "logica di business" a queste funzioni.
-import { createSite, getAllSites } from '../services/resourceService.js';
+import { createSite, getAllSites, deleteSite } from '../services/resourceService.js';
 
 // ==========================================
 // CONTROLLER PER LA LETTURA (GET)
@@ -22,7 +22,7 @@ export const getSites = (req, res) => {
   } catch (error) {
     // 3. GESTIONE ERRORE: Se qualcosa si rompe (es. database non raggiungibile),
     // stampiamo l'errore tecnico nel terminale per aiutare noi sviluppatori nel debug...
-    console.error("🚨 ERRORE REALE DURANTE LA GET:", error); 
+    console.error("🚨 (Resources) ERRORE REALE DURANTE LA GET:", error); 
     
     // ...e rispondiamo al frontend con un codice 500 (Internal Server Error)
     // mascherando i dettagli tecnici all'utente finale.
@@ -57,7 +57,33 @@ export const addSite = (req, res) => {
     res.status(201).json(newSite);
   } catch (error) {
     // 5. GESTIONE ERRORE: Catturiamo e gestiamo un'eventuale rottura del server.
-    console.error("Errore durante la creazione del sito:", error);
+    console.error("🚨 (Resources) ERRORE REALE DURANTE LA POST:", error);
     res.status(500).json({ error: "Errore interno del server" });
+  }
+};
+
+// ==========================================
+// CONTROLLER PER L'ELIMINAZIONE (DELETE)
+// ==========================================
+export const removeSite = (req, res) => {
+  try {
+    // 1. ESTRAZIONE PARAMETRO: Leggiamo l'id dalle variabili dell'URL (req.params)
+    const { id } = req.params;
+
+    // 2. DELEGA: Chiediamo al Service di eliminare il sito con questo ID
+    const isDeleted = deleteSite(id);
+
+    // 3. VERIFICA: Se il Service restituisce false, rispondiamo con un errore 404 (Not Found)
+    if (!isDeleted) {
+      return res.status(404).json({ error: `Sito di risorse con ID ${id} non trovato.` });
+    }
+
+    // 4. RISPOSTA DI SUCCESSO: Inviamo uno status 200 OK con un JSON di conferma
+    res.status(200).json({ message: "Sito di risorse eliminato con successo." });
+
+  } catch (error) {
+    // Gestione di sicurezza per non far crashare il server
+    console.error("🚨 (Resources) ERRORE REALE DURANTE LA DELETE:", error);
+    res.status(500).json({ error: "Errore interno del server durante l'eliminazione" });
   }
 };

@@ -16,6 +16,7 @@ import mockSites from '../models/mockDatabase.js';
 import ResourceSite from '../models/ResourceSite.js';
 
 // FUNZIONE: LETTURA (GET)
+
 // Funzione esportata per il ritorno di tutti i siti di risorse.
 // Quando il Controller chiama questa funzione, il Service va nel "magazzino"
 // (il nostro array in memoria) e preleva tutti i dati disponibili.
@@ -24,6 +25,7 @@ export const getAllSites = () => {
 };
 
 // FUNZIONE: CREAZIONE (POST)
+
 // Funzione esportata per la creazione di nuovi siti di risorse.
 // Riceve 'siteData', ovvero l'oggetto JSON grezzo inviato dal frontend e 
 // validato superficialmente dal Controller.
@@ -57,4 +59,22 @@ export const createSite = (siteData) => {
   // Il lavoro dell'operaio è finito. Restituisce l'oggetto completo e formattato 
   // al Controller, il quale provvederà a impacchettarlo e spedirlo a React.
   return newSite;
+};
+
+// FUNZIONE: ELIMINAZIONE (DELETE)
+
+// Riceve l'id del sito dal Controller, cerca l'indice dell'elemento
+// all'interno dell'array mockSites e lo rimuove
+export const deleteSite = (id) => {
+  // Cerchiamo l'indice del sito (convertiamo l'id in Number perché dall'URL arriva come stringa)
+  const index = mockSites.findIndex(site => site.id === Number(id));
+
+  // Se l'elemento non esiste nel database, findIndex restituisce -1
+  if (index === -1) {
+    return false; // Comunichiamo al controller che il sito non è stato trovato
+  }
+
+  // Rimuoviamo il sito dall'array usando splice (rimuove 1 elemento a partire dall'indice trovato)
+  mockSites.splice(index, 1);
+  return true; // Ritorna true per confermare l'avvenuta eliminazione
 };
