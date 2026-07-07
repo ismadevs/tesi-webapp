@@ -1,20 +1,21 @@
 import { Search, Plus } from 'lucide-react';
 
-export default function TopBar() {
+// 1. Aggiungiamo le props che ci vengono passate dal componente genitore (ResourcesPage)
+export default function TopBar({ searchQuery, setSearchQuery }) {
   return (
-    <div className="mb-12"> {/* <-- rimosso il flex da qui */}
+    <div className="mb-12">
       
       {/* IL TITOLO (Sta da solo sulla sua riga) */}
       <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-gray-900 mb-4">
         Resources
       </h2>
 
-      {/* IL NUOVO CONTENITORE FLEX: Mette Sottotitolo e Azioni sulla stessa linea */}
+      {/* IL CONTENITORE FLEX: Mette Sottotitolo e Azioni sulla stessa linea */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         
-        {/* Sottotitolo (ora spinto a sinistra) */}
+        {/* Sottotitolo */}
         <p className="text-lg text-gray-600 mt-4">
-          Manage your computational resources and hosting environments.
+          Manage your computational resources and hosting environments
         </p>
 
         {/* AREA AZIONI */}
@@ -25,6 +26,10 @@ export default function TopBar() {
             <input
               type="text"
               placeholder="Search..."
+              // 2. Colleghiamo il valore dell'input allo stato di React
+              value={searchQuery}
+              // 3. Ogni volta che l'utente preme un tasto, aggiorniamo lo stato
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-4 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none w-50 transition-all"
             />
           </div>

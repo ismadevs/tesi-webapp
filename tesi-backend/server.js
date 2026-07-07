@@ -44,7 +44,7 @@ app.use(express.json());
 // REGISTRAZIONE ROTTE
 // ===============================
 
-// 2. MONTA IL ROUTER DELLE RISORSE
+// MONTA IL ROUTER DELLE RISORSE
 // Tutte le richieste che iniziano per /api/resources verranno gestite da resourceRoutes
 app.use('/api/resources', resourceRoutes);
 

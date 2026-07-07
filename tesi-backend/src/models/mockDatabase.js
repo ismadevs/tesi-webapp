@@ -62,7 +62,19 @@ let mockSites = [
     os: "Ubuntu 24.04 LTS",
     ipAddress: "10.0.0.46",
     lastPing: "2026-07-02T19:40:00Z"
-  })
+  }),
+  new ResourceSite({
+  id: 6,
+  name: "Compute Nexus",
+  status: "offline",
+  cpuCores: 32,
+  ramGB: 128,
+  storageTB: 5,
+  hostingType: "Bare Metal",
+  os: "Debian 12",
+  ipAddress: "10.0.0.58",
+  lastPing: "2026-07-07T08:25:00Z"
+})
 ];
 
 export default mockSites;
