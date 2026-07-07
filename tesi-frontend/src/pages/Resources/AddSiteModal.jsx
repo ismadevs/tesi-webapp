@@ -101,7 +101,7 @@ export default function AddSiteModal({ onClose, onSave, existingSites = [] }){
 
         {/* HEADER */}
         <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-100">
-          <h2 className="text-xl font-bold text-gray-900 tracking-tight">Add New Site</h2>
+          <h2 className="text-xl font-bold text-black tracking-tight">Add New Site</h2>
           <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors cursor-pointer">
             <X size={20} strokeWidth={2.5} />
           </button>

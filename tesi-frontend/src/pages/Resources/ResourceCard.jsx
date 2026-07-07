@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { MoreVertical, Info, Pencil, Trash2 } from 'lucide-react';
 
-// Il componente accetta 'site' (i dati) e 'onOpenInfo' (la funzione passata da ResourcesPage)
-export default function ResourceCard({ site, onOpenInfo }){
+// Il componente accetta 'site' (i dati), 'onOpenInfo' (la funzione passata da ResourcesPage) e 'onDeleteSite' (per gestire l'eliminazione)
+export default function ResourceCard({ site, onOpenInfo, onDeleteSite }){ // <-- Aggiunta prop onDeleteSite
   // Stato per il menu a tendina (Kebab menu)
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -43,22 +43,36 @@ export default function ResourceCard({ site, onOpenInfo }){
             <MoreVertical size={18} strokeWidth={2.5} />
           </button>
 
-          {/* Il Dropdown che si apre al click */}
+          {/* Il Dropdown che si apre al click con patch per la chiusura cliccando fuori */}
           {isMenuOpen && (
-            <div className="absolute right-0 mt-2 w-36 bg-white border border-gray-100 rounded-xl shadow-xl z-20 py-1 overflow-hidden">
-              <button
-                onClick={() => { console.log('Edit', site.id); setIsMenuOpen(false); }}
-                className="w-full text-left px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 cursor-pointer"
-              >
-                <Pencil size={14} /> Edit
-              </button>
-              <button
-                onClick={() => { console.log('Delete', site.id); setIsMenuOpen(false); }}
-                className="w-full text-left px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer"
-              >
-                <Trash2 size={14} /> Delete
-              </button>
-            </div>
+            <>
+              {/* BACKDROP INVISIBILE: Copre l'intero schermo sotto al dropdown. 
+                  Cliccando in un punto qualsiasi fuori dal menu, questo div intercetta il click e lo chiude. */}
+              <div 
+                className="fixed inset-0 z-10 cursor-default" 
+                onClick={() => setIsMenuOpen(false)} 
+              />
+
+              {/* IL DROPDOWN VERO E PROPRIO (z-20 per stare sopra al backdrop) */}
+              <div className="absolute right-0 mt-2 w-36 bg-white border border-gray-100 rounded-xl shadow-xl z-20 py-1 overflow-hidden">
+                <button
+                  onClick={() => { console.log('Edit', site.id); setIsMenuOpen(false); }}
+                  className="w-full text-left px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 cursor-pointer"
+                >
+                  <Pencil size={14} /> Edit
+                </button>
+                {/* TASTO DELETE: Attiva la chiamata sul backend passando l'ID specifico */}
+                <button
+                  onClick={() => { 
+                    onDeleteSite(site); 
+                    setIsMenuOpen(false); 
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer"
+                >
+                  <Trash2 size={14} /> Delete
+                </button>
+              </div>
+            </>
           )}
         </div>
       </div>

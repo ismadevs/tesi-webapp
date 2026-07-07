@@ -5,6 +5,8 @@ import PageLayout from '../../components/PageLayout';
 import TopBar from './TopBar';
 import ResourceCard from './ResourceCard';
 import ResourceDetailsModal from './ResourceDetailsModal';
+import DeleteConfirmModal from './DeleteConfirmModal'; // <-- IMPORT NUOVA MODALE
+
 // 1. IMPORTIAMO LA NUOVA MODALE
 import AddSiteModal from './AddSiteModal';
 
@@ -23,6 +25,9 @@ export default function ResourcesPage(){
 
   // STATO DELLA MODALE AGGIUNTA (POST): Controlla se il form di creazione è aperto
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  // STATO DELLA MODALE ELIMINAZIONE (DELETE): Salva l'intero oggetto del sito che si sta per eliminare. Se è null, la modale è chiusa.
+  const [siteToDelete, setSiteToDelete] = useState(null);
 
   // STATO PER LA RICERCA: Salva in tempo reale quello che l'utente scrive nella TopBar
   const [searchQuery, setSearchQuery] = useState("");
@@ -100,8 +105,47 @@ export default function ResourcesPage(){
     }
   };
 
+    // ==========================================
+  // FUNZIONE DI ELIMINAZIONE (DELETE)
   // ==========================================
-  // 4. LOGICA DI FILTRAGGIO (RICERCA IN TEMPO REALE)
+  const handleDeleteSite = async (id) => {
+    // Iniziamo mostrando un toast di caricamento (molto pro)
+    const toastId = toast.loading('Deleting resource site...');
+
+    try {
+      // Spariamo la richiesta DELETE includendo l'id nell'URL
+      const response = await fetch(`http://localhost:3000/api/resources/${id}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        throw new Error("Errore durante l'eliminazione sul server");
+      }
+
+      // Se il server risponde con successo, aggiorniamo lo stato locale in tempo reale.
+      // Usiamo il metodo filter per tenere nell'array solo i siti che NON hanno l'id appena eliminato.
+      setSites((prevSites) => prevSites.filter(site => site.id !== id));
+
+      // Sostituiamo il toast di caricamento con quello di successo
+      toast.success('Resource site deleted successfully!', {
+        id: toastId,
+        duration: 4000,
+      });
+
+      // Svuota lo stato e nasconde la modale di conferma
+      setSiteToDelete(null);
+
+    } catch (error) {
+      console.error("Errore durante l'eliminazione:", error);
+      // In caso di errore aggiorniamo il toast con il messaggio rosso
+      toast.error('Failed to delete resource site.', {
+        id: toastId,
+      });
+    }
+  };
+
+  // ==========================================
+  // LOGICA DI FILTRAGGIO (RICERCA IN TEMPO REALE)
   // ==========================================
   const filteredSites = sites.filter(site => 
     site.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -110,60 +154,54 @@ export default function ResourcesPage(){
 
   return (
     <PageLayout topPadding="pt-0" layoutClass="overflow-hidden relative">
-      
       <div className="flex flex-col h-full min-h-0 animate-in fade-in duration-300">
-
         {/* TOP BAR FISSA IN ALTO */}
         <div className="shrink-0">
-          <TopBar 
-            searchQuery={searchQuery} 
-            setSearchQuery={setSearchQuery} 
+          <TopBar
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
             // Passiamo alla TopBar la funzione per aprire la modale quando si clicca "New Site"
-            onOpenAdd={() => setIsAddModalOpen(true)} 
+            onOpenAdd={() => setIsAddModalOpen(true)}
           />
         </div>
 
         {/* AREA DEL FEED CON SCROLL INDIPENDENTE */}
         <div className="flex-1 overflow-y-auto no-scrollbar pb-20">
-
           {/* RENDER CONDIZIONALE */}
           {isLoading ? (
             <div className="h-full flex items-center justify-center">
               <Loader2 className="animate-spin text-gray-300" size={28} />
             </div>
-            
           ) : sites.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <p className="text-gray-400 text-lg tracking-wide font-light">
                 Resources will appear here
               </p>
             </div>
-            
           ) : filteredSites.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center gap-2">
               <p className="text-gray-400 text-lg tracking-wide font-light">
                 Nessun risultato trovato per "{searchQuery}"
               </p>
-              <button 
+              <button
                 onClick={() => setSearchQuery("")}
                 className="text-sm text-primary cursor-pointer"
               >
                 Cancella ricerca
               </button>
             </div>
-
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredSites.map((site) => (
-                <ResourceCard 
-                  key={site.id} 
-                  site={site} 
-                  onOpenInfo={setSelectedSite} 
+                <ResourceCard
+                  key={site.id}
+                  site={site}
+                  onOpenInfo={setSelectedSite}
+                  onDeleteSite={setSiteToDelete}
                 />
               ))}
             </div>
           )}
-
         </div>
       </div>
 
@@ -171,9 +209,9 @@ export default function ResourcesPage(){
           5. RENDER MODALE INFO (Dettagli Sito)
           ========================================== */}
       {selectedSite && (
-        <ResourceDetailsModal 
-          site={selectedSite} 
-          onClose={() => setSelectedSite(null)} 
+        <ResourceDetailsModal
+          site={selectedSite}
+          onClose={() => setSelectedSite(null)}
         />
       )}
 
@@ -181,13 +219,24 @@ export default function ResourcesPage(){
           6. RENDER MODALE AGGIUNTA (Nuovo Sito)
           ========================================== */}
       {isAddModalOpen && (
-        <AddSiteModal 
+        <AddSiteModal
           existingSites={sites} // Per il controllo dei doppioni sul form
           onSave={handleCreateSite} // La funzione da eseguire al Submit
           onClose={() => setIsAddModalOpen(false)} // Per chiudere premendo X o fuori
         />
       )}
 
+      {/* ==========================================
+          7. RENDER MODALE DI CONFERMA ELIMINAZIONE
+          ========================================== */}
+      {siteToDelete && (
+        <DeleteConfirmModal
+          site={siteToDelete}
+          onClose={() => setSiteToDelete(null)} // Chiude senza eliminare
+          onConfirm={handleDeleteSite} // Avvia la vera cancellazione passando l'id
+        />
+      )}
+      
     </PageLayout>
   );
 }
