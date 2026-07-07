@@ -1,7 +1,7 @@
 import { Search, Plus } from 'lucide-react';
 
 // 1. Aggiungiamo le props che ci vengono passate dal componente genitore (ResourcesPage)
-export default function TopBar({ searchQuery, setSearchQuery }) {
+export default function TopBar({ searchQuery, setSearchQuery, onOpenAdd }) {
   return (
     <div className="mb-12">
       
@@ -36,7 +36,7 @@ export default function TopBar({ searchQuery, setSearchQuery }) {
 
           {/* Add Button */}
           <button
-            onClick={() => console.log('Cliccato Add Site!')}
+            onClick={onOpenAdd}
             className="flex items-center justify-center gap-2 bg-primary text-white px-2 pr-5 pl-3 py-2 rounded-lg font-semibold hover:bg-blue-600 transition-colors cursor-pointer"
           >
             <Plus size={16} strokeWidth={2.5} />

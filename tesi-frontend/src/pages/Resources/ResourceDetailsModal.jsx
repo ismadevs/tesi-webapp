@@ -72,7 +72,7 @@ export default function ResourceDetailsModal({ site, onClose }) {
               <div className="bg-gray-50/80 p-4 rounded-2xl flex flex-col items-center justify-center text-center border border-gray-100/50">
                 <HardDrive size={20} className="text-black mb-2" />
                 <span className="text-xl font-bold text-black">{site.compute.storageTB}</span>
-                <span className="text-xs text-black font-medium mt-0.5">TB SSD</span>
+                <span className="text-xs text-black font-medium mt-0.5">TB Storage</span>
               </div>
             </div>
           </div>
