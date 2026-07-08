@@ -5,7 +5,8 @@ import PageLayout from '../../components/PageLayout';
 import TopBar from './TopBar';
 import ResourceCard from './ResourceCard';
 import ResourceDetailsModal from './ResourceDetailsModal';
-import DeleteConfirmModal from './DeleteConfirmModal'; // <-- IMPORT NUOVA MODALE
+import DeleteConfirmModal from './DeleteConfirmModal'; 
+import EditSiteModal from './EditSiteModal'; // 
 
 // 1. IMPORTIAMO LA NUOVA MODALE
 import AddSiteModal from './AddSiteModal';
@@ -28,6 +29,9 @@ export default function ResourcesPage(){
 
   // STATO DELLA MODALE ELIMINAZIONE (DELETE): Salva l'intero oggetto del sito che si sta per eliminare. Se è null, la modale è chiusa.
   const [siteToDelete, setSiteToDelete] = useState(null);
+
+  // STATO MODALE MODIFICA: Memorizza il sito da modificare. Se valorizzato, apre la modale.
+  const [siteToEdit, setSiteToEdit] = useState(null);
 
   // STATO PER LA RICERCA: Salva in tempo reale quello che l'utente scrive nella TopBar
   const [searchQuery, setSearchQuery] = useState("");
@@ -105,7 +109,7 @@ export default function ResourcesPage(){
     }
   };
 
-    // ==========================================
+  // ==========================================
   // FUNZIONE DI ELIMINAZIONE (DELETE)
   // ==========================================
   const handleDeleteSite = async (id) => {
@@ -139,6 +143,52 @@ export default function ResourcesPage(){
       console.error("Errore durante l'eliminazione:", error);
       // In caso di errore aggiorniamo il toast con il messaggio rosso
       toast.error('Failed to delete resource site.', {
+        id: toastId,
+      });
+    }
+  };
+
+  // ==========================================
+  // FUNZIONE DI MODIFICA (PUT)
+  // ==========================================
+  const handleUpdateSite = async (id, updatedData) => {
+    // Avviamo il toast di caricamento per una UX fluida
+    const toastId = toast.loading('Updating resource site...');
+
+    try {
+      // Eseguiamo la chiamata PUT specificando l'ID nell'URL
+      const response = await fetch(`http://localhost:3000/api/resources/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updatedData)
+      });
+
+      if (!response.ok) {
+        throw new Error('Errore durante la modifica del sito sul server');
+      }
+
+      // Il backend ci restituisce l'oggetto appena aggiornato e validato dal Model
+      const updatedSite = await response.json();
+
+      // Aggiorniamo lo stato: mappiamo l'array esistente e, quando troviamo l'ID corretto,
+      // sostituiamo il vecchio oggetto con quello nuovo restituito da Node.js
+      setSites((prevSites) => prevSites.map(site => site.id === id ? updatedSite : site));
+
+      // Chiudiamo la modale di modifica
+      setSiteToEdit(null);
+
+      // Trasformiamo il toast in successo
+      toast.success('Resource site updated successfully!', {
+        id: toastId,
+        duration: 4000,
+      });
+
+    } catch (error) {
+      console.error("Errore durante la modifica:", error);
+      // Trasformiamo il toast in errore
+      toast.error('Failed to update resource site.', {
         id: toastId,
       });
     }
@@ -198,6 +248,7 @@ export default function ResourcesPage(){
                   site={site}
                   onOpenInfo={setSelectedSite}
                   onDeleteSite={setSiteToDelete}
+                  onEditSite={setSiteToEdit}
                 />
               ))}
             </div>
@@ -234,6 +285,18 @@ export default function ResourcesPage(){
           site={siteToDelete}
           onClose={() => setSiteToDelete(null)} // Chiude senza eliminare
           onConfirm={handleDeleteSite} // Avvia la vera cancellazione passando l'id
+        />
+      )}
+
+      {/* ==========================================
+          8. RENDER MODALE MODIFICA (PUT)
+          ========================================== */}
+      {siteToEdit && (
+        <EditSiteModal
+          siteToEdit={siteToEdit} // Passiamo l'oggetto da pre-compilare
+          existingSites={sites} // Per il controllo anti-doppione sul nome
+          onClose={() => setSiteToEdit(null)} // Per chiudere premendo X o Cancel
+          onSave={handleUpdateSite} // La funzione fetch che esegue la PUT
         />
       )}
       
