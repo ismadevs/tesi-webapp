@@ -1,7 +1,7 @@
 // Importiamo le singole funzioni destrutturate dal Service.
 // Il Controller non ha idea di come vengano recuperati o salvati i dati nel database,
 // il suo compito è semplicemente delegare la "logica di business" a queste funzioni.
-import { createSite, getAllSites, deleteSite } from '../services/resourceService.js';
+import { createSite, getAllSites, deleteSite, updateSite } from '../services/resourceService.js';
 
 // ==========================================
 // CONTROLLER PER LA LETTURA (GET)
@@ -85,5 +85,36 @@ export const removeSite = (req, res) => {
     // Gestione di sicurezza per non far crashare il server
     console.error("🚨 (Resources) ERRORE REALE DURANTE LA DELETE:", error);
     res.status(500).json({ error: "Errore interno del server durante l'eliminazione" });
+  }
+};
+
+// ==========================================
+// CONTROLLER PER LA MODIFICA (PUT)
+// ==========================================
+export const editSite = (req, res) => {
+  try {
+    // 1. ESTRAZIONE: Prendiamo l'ID dall'URL e i nuovi dati dal corpo della richiesta
+    const { id } = req.params;
+    const siteData = req.body;
+
+    // 2. VALIDAZIONE BASE: Se l'utente sta cercando di cambiare il nome, non può essere vuoto
+    if (siteData.name !== undefined && !siteData.name.trim()) {
+      return res.status(400).json({ error: "Il campo 'name' è obbligatorio." });
+    }
+
+    // 3. DELEGA AL SERVICE: Passiamo ID e dati aggiornati
+    const updatedSite = updateSite(id, siteData);
+
+    // 4. VERIFICA: Se il service restituisce null, significa che quel sito non esiste più
+    if (!updatedSite) {
+      return res.status(404).json({ error: `Sito di risorse con ID ${id} non trovato.` });
+    }
+
+    // 5. SUCCESSO: Rispondiamo con il 200 (OK) e restituiamo il sito aggiornato al frontend
+    res.status(200).json(updatedSite);
+
+  } catch (error) {
+    console.error("🚨 ERRORE REALE DURANTE LA PUT:", error);
+    res.status(500).json({ error: "Errore interno del server durante la modifica" });
   }
 };

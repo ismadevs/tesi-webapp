@@ -5,7 +5,7 @@ import express from 'express';
 // Importiamo le funzioni specifiche dal nostro Controller.
 // Utilizziamo la destrutturazione (le parentesi graffe {}) per estrarre 
 // solo le funzioni 'addSite' e 'getSites' dal file resourceController.js.
-import { addSite, getSites, removeSite } from '../controllers/resourceController.js';
+import { addSite, getSites, removeSite, editSite } from '../controllers/resourceController.js';
 
 // Creiamo un'istanza del Router di Express.
 // Il 'router' agisce come un mini-server o un "vigile urbano" isolato
@@ -30,6 +30,10 @@ router.get('/', getSites);
 // Il costrutto '/:id' indica ad Express che quella parte dell'URL è dinamica
 // Una richiesta verso /api/resources/2 attiverà questo endpoint e l'ID sarà disponibile nel controller
 router.delete('/:id', removeSite);
+
+// Rotta per la modifica completa o parziale di un sito di risorse tramite ID
+// Una richiesta PUT verso /api/resources/2 attiverà questo endpoint
+router.put('/:id', editSite);
 
 // Esportiamo l'istanza del router appena configurata come esportazione di default.
 // In questo modo, il file principale (server.js) potrà importare questo router 

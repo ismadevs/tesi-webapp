@@ -78,3 +78,42 @@ export const deleteSite = (id) => {
   mockSites.splice(index, 1);
   return true; // Ritorna true per confermare l'avvenuta eliminazione
 };
+
+// ==========================================
+// FUNZIONE: MODIFICA (PUT)
+// ==========================================
+// Riceve l'id del sito da modificare e i nuovi dati inviati dal frontend.
+// Trova l'elemento, lo aggiorna mantenendo la validazione del Model e lo salva.
+export const updateSite = (id, updatedData) => {
+  // 1. Cerchiamo l'indice del sito da modificare
+  const index = mockSites.findIndex(site => site.id === Number(id));
+
+  // 2. Se non esiste nel database, ritorniamo null per avvisare il controller
+  if (index === -1) {
+    return null;
+  }
+
+  // 3. Recuperiamo la "vecchia" versione del sito
+  const existingSite = mockSites[index];
+
+  // 4. FUSIONE DEI DATI E VALIDAZIONE
+  // Per ripassare i dati al costruttore ResourceSite, dobbiamo "appiattire"
+  // le variabili nidificate (compute e tech) del vecchio sito, e poi sovrascriverle
+  // con i nuovi dati in arrivo dal frontend.
+  const mergedData = {
+    ...existingSite,
+    ...existingSite.compute,
+    ...existingSite.tech,
+    ...updatedData,
+    id: Number(id) // L'ID è intoccabile, forziamo quello originale
+  };
+
+  // Creiamo una nuova istanza pulita e validata
+  const updatedSite = new ResourceSite(mergedData);
+
+  // 5. Sostituiamo il vecchio sito con quello appena generato all'interno dell'array
+  mockSites[index] = updatedSite;
+
+  // 6. Restituiamo il sito aggiornato al Controller
+  return updatedSite;
+};
