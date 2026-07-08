@@ -62,7 +62,7 @@ export default function ResourceCard({ site, onOpenInfo, onDeleteSite, onEditSit
                     onEditSite(site); // <-- Chiamiamo la prop passando i dati del sito
                     setIsMenuOpen(false); // <-- Chiudiamo la tendina
                   }}
-                  className="w-full text-left px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 cursor-pointer"
+                  className="w-full text-left px-4 py-2 text-sm font-medium text-black hover:bg-gray-50 flex items-center gap-2 cursor-pointer"
                 >
                   <Pencil size={14} /> Edit
                 </button>
@@ -86,11 +86,13 @@ export default function ResourceCard({ site, onOpenInfo, onDeleteSite, onEditSit
           BODY (Specifiche CPU/RAM)
           ========================================== */}
       {/* mb-auto funge da molla: spinge tutto il blocco successivo verso il basso */}
-      <div className="mb-auto">
+      <div className="mb-auto mt-2">
         <p className="text-sm font-semibold text-black">
           {site.compute.cpuCores} Cores{" "}
           <span className="text-black font-light mx-1.5">•</span>{" "}
           {site.compute.ramGB} GB RAM
+          <span className="text-black font-light mx-1.5">•</span>{" "}
+          {site.compute.storageTB} TB SSD
         </p>
       </div>
 
@@ -99,7 +101,7 @@ export default function ResourceCard({ site, onOpenInfo, onDeleteSite, onEditSit
           ========================================== */}
       <div className="flex justify-between items-end mt-6">
         {/* Badge Hosting Type (Es. Docker, Kubernetes) */}
-        <span className="px-2.5 py-1 bg-blue-50/80 text-primary text-xs font-bold rounded-lg border border-blue-100 uppercase tracking-wide">
+        <span className="px-2.5 py-1 bg-white text-black text-xs font-bold rounded-lg border border-gray-200 uppercase tracking-wide">
           {site.tech.hostingType}
         </span>
 
