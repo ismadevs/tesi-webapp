@@ -231,13 +231,13 @@ export default function ResourcesPage(){
           ) : filteredSites.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center gap-2">
               <p className="text-gray-400 text-lg tracking-wide font-light">
-                Nessun risultato trovato per "{searchQuery}"
+                No results found for "{searchQuery}"
               </p>
               <button
                 onClick={() => setSearchQuery("")}
                 className="text-sm text-primary cursor-pointer"
               >
-                Cancella ricerca
+                Cancel Search
               </button>
             </div>
           ) : (
