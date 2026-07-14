@@ -171,8 +171,8 @@ export default function ResourceDetailsModal({ site, onClose }){
                 {/* SPAZIO CHIAVE UNIFICATO: Uguale per VM e Kubernetes */}
                 <div className="flex items-center justify-between p-3.5 bg-gray-50/80 rounded-2xl border border-gray-100/50">
                   <div className="flex items-center gap-3 text-black">
-                    <KeyRound size={18}/>
-                    <span className="text-sm font-medium">SSH Access Key</span>
+                    <KeyRound size={18} strokeWidth={2.5}/>
+                    <span className="text-sm font-medium">Access Key</span>
                   </div>
 
                   {/* Se la chiave esiste, mostriamo il testo in chiaro e il pulsante copia */}

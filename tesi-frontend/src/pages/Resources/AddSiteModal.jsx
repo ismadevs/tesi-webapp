@@ -81,7 +81,7 @@ export default function AddSiteModal({ onClose, onSave, existingSites = [] }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-md animate-in fade-in duration-200" onClick={onClose}>
-      <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col h-[540px]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col h-135" onClick={(e) => e.stopPropagation()}>
 
         <div className="shrink-0">
           <div className="flex items-center justify-between p-6 pb-5">
