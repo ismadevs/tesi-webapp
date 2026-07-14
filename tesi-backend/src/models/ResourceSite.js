@@ -24,7 +24,7 @@ export default class ResourceSite{
     // 2. VALIDAZIONE DELLO STATO (ENUM SIMULATO)
     // Abbiamo aggiunto 'in-use' per le macchine attualmente allocate a un ricercatore.
     // Se la risorsa è appena nata, forziamo lo stato 'creating'.
-    const validStatuses = ['creating', 'online', 'offline', 'maintenance', 'in-use'];
+    const validStatuses = ['online', 'offline', 'maintenance', 'in-use'];
     this.status = validStatuses.includes(data.status) ? data.status : 'creating';
 
     // Data di creazione automatica se non fornita (in formato ISO standard)

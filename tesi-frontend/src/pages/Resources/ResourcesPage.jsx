@@ -7,8 +7,6 @@ import ResourceCard from './ResourceCard';
 import ResourceDetailsModal from './ResourceDetailsModal';
 import DeleteConfirmModal from './DeleteConfirmModal'; 
 import EditSiteModal from './EditSiteModal'; // 
-
-// 1. IMPORTIAMO LA NUOVA MODALE
 import AddSiteModal from './AddSiteModal';
 
 export default function ResourcesPage(){
@@ -194,12 +192,11 @@ export default function ResourcesPage(){
     }
   };
 
-  // ==========================================
   // LOGICA DI FILTRAGGIO (RICERCA IN TEMPO REALE)
-  // ==========================================
+  // Filtriamo in modo sicuro accedendo all'IP dentro l'oggetto connection
   const filteredSites = sites.filter(site => 
     site.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    site.tech.ipAddress.includes(searchQuery)
+    (site.connection?.ipAddress && site.connection.ipAddress.includes(searchQuery))
   );
 
   return (

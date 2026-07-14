@@ -88,7 +88,7 @@ let mockSites = [
     id: 6,
     name: "Compute Nexus",
     resourceType: "slices-vm",
-    status: "creating",
+    status: "offline",
     createdAt: "2026-07-07T08:25:00Z",
     connection: {
       ipAddress: "10.0.0.58",
@@ -238,7 +238,7 @@ let mockSites = [
     id: 15,
     name: "Internal DNS Server",
     resourceType: "slices-vm",
-    status: "creating",
+    status: "offline",
     createdAt: "2026-07-08T11:45:00Z",
     connection: {
       ipAddress: "192.168.1.53",
