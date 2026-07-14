@@ -1,82 +1,81 @@
 // ==========================================
 // LAYER DEI SERVIZI (BUSINESS LOGIC)
 // ==========================================
-// Il Service è l'operaio specializzato del nostro backend. 
-// Riceve ordini dal Controller, esegue calcoli complessi, applica le regole 
+// Il Service è l'operaio specializzato del nostro backend.
+// Riceve ordini dal Controller, esegue calcoli complessi, applica le regole
 // di business dell'applicazione e dialoga con il livello dei Dati (Model/Database).
 
-// Importiamo il "finto database" (l'array in memoria) dove salveremo i dati.
-// Nelle applicazioni reali con un DB vero (es. CouchDB), qui importeremmo 
-// il driver del database per eseguire le query (es. db.find(), db.insert()).
 import mockSites from '../models/mockDatabase.js';
-
-// Importiamo la Classe/Model che fa da "stampino" e strutturatore dei metadati.
-// Questo ci garantisce che i dati grezzi in arrivo vengano formattati 
-// esattamente come richiede la nostra architettura.
 import ResourceSite from '../models/ResourceSite.js';
 
-// FUNZIONE: LETTURA (GET)
+// ==========================================
+// FUNZIONI HELPER PER MOCKING (SOLO PROTOTIPO)
+// ==========================================
+// Nel mondo cloud reale, queste informazioni vengono assegnate dal server DHCP
+// e dai gestori delle identità di Slices. Noi le simuliamo qui.
+const generateFakeIP = () => `10.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 10)}.${Math.floor(Math.random() * 255)}`;
 
-// Funzione esportata per il ritorno di tutti i siti di risorse.
+const generateFakeKey = () => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < 20; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
+
+
+// FUNZIONE: LETTURA (GET)
 // Quando il Controller chiama questa funzione, il Service va nel "magazzino"
-// (il nostro array in memoria) e preleva tutti i dati disponibili.
+// e preleva tutti i dati disponibili.
 export const getAllSites = () => {
   return mockSites;
 };
 
 // FUNZIONE: CREAZIONE (POST)
-
-// Funzione esportata per la creazione di nuovi siti di risorse.
-// Riceve 'siteData', ovvero l'oggetto JSON grezzo inviato dal frontend e 
+// Riceve 'siteData', ovvero l'oggetto JSON grezzo inviato dal frontend e
 // validato superficialmente dal Controller.
 export const createSite = (siteData) => {
-  
+
   // 1. CALCOLO DELL'AUTO-INCREMENTO (SIMULAZIONE DATABASE RELAZIONALE):
-  // Dobbiamo capire quale ID numerico assegnare al nuovo sito. 
-  // Guardiamo nel database:
-  // - Se ci sono già elementi (mockSites.length > 0), estraiamo tutti gli ID correnti, 
-  //   troviamo il valore massimo con Math.max e aggiungiamo 1.
-  // - Se il database è vuoto, partiamo da 0 (così il primo elemento avrà ID 1).
   const maxId = mockSites.length > 0 ? Math.max(...mockSites.map(site => site.id)) : 0;
   const newId = maxId + 1;
 
-  // 2. MODELLAZIONE E STRUTTURAZIONE (DATA SHAPING):
-  // Uniamo i dati grezzi del frontend (...siteData) con l'ID numerico appena calcolato.
-  // Passiamo questo "super-oggetto" al costruttore 'new ResourceSite()'.
-  // Sarà la Classe stessa (il Model) a preoccuparsi di smistare le variabili
-  // raggruppandole sotto 'compute', 'tech' e inserendo automaticamente il timestamp in 'lastPing'.
+  // 2. GENERAZIONE DATI DI CONNESSIONE E METADATI POST-CREAZIONE:
+  // Visto che per la UX vogliamo visualizzare subito dati finti senza errori,
+  // generiamo un IP e una chiave temporanea al momento della creazione.
+  const connectionData = {
+    ipAddress: generateFakeIP(),
+    accessKey: generateFakeKey()
+  };
+
+  // 3. MODELLAZIONE E STRUTTURAZIONE (DATA SHAPING):
+  // Passiamo il "super-oggetto" al costruttore 'new ResourceSite()'.
+  // Il Model leggerà il 'resourceType' e raggrupperà correttamente l'hardware sotto 'spec'.
   const newSite = new ResourceSite({
     ...siteData,
-    id: newId
+    id: newId,
+    connection: connectionData
   });
 
-  // 3. PERSISTENZA (IN MEMORIA):
-  // Infiliamo l'oggetto definitivo e perfettamente formattato dentro il nostro array mock.
-  // Da questo preciso istante, il nuovo sito esiste ufficialmente nella RAM del server.
+  // 4. PERSISTENZA (IN MEMORIA):
   mockSites.push(newSite);
 
-  // 4. RITORNO AL MITTENTE:
-  // Il lavoro dell'operaio è finito. Restituisce l'oggetto completo e formattato 
-  // al Controller, il quale provvederà a impacchettarlo e spedirlo a React.
+  // 5. RITORNO AL MITTENTE:
   return newSite;
 };
 
 // FUNZIONE: ELIMINAZIONE (DELETE)
-
-// Riceve l'id del sito dal Controller, cerca l'indice dell'elemento
-// all'interno dell'array mockSites e lo rimuove
+// Riceve l'id del sito dal Controller, lo cerca nell'array e lo rimuove.
 export const deleteSite = (id) => {
-  // Cerchiamo l'indice del sito (convertiamo l'id in Number perché dall'URL arriva come stringa)
   const index = mockSites.findIndex(site => site.id === Number(id));
 
-  // Se l'elemento non esiste nel database, findIndex restituisce -1
   if (index === -1) {
-    return false; // Comunichiamo al controller che il sito non è stato trovato
+    return false;
   }
 
-  // Rimuoviamo il sito dall'array usando splice (rimuove 1 elemento a partire dall'indice trovato)
   mockSites.splice(index, 1);
-  return true; // Ritorna true per confermare l'avvenuta eliminazione
+  return true;
 };
 
 // ==========================================
@@ -88,7 +87,7 @@ export const updateSite = (id, updatedData) => {
   // 1. Cerchiamo l'indice del sito da modificare
   const index = mockSites.findIndex(site => site.id === Number(id));
 
-  // 2. Se non esiste nel database, ritorniamo null per avvisare il controller
+  // 2. Se non esiste nel database, ritorniamo null
   if (index === -1) {
     return null;
   }
@@ -96,22 +95,23 @@ export const updateSite = (id, updatedData) => {
   // 3. Recuperiamo la "vecchia" versione del sito
   const existingSite = mockSites[index];
 
-  // 4. FUSIONE DEI DATI E VALIDAZIONE
-  // Per ripassare i dati al costruttore ResourceSite, dobbiamo "appiattire"
-  // le variabili nidificate (compute e tech) del vecchio sito, e poi sovrascriverle
-  // con i nuovi dati in arrivo dal frontend.
+  // 4. FUSIONE DEI DATI E VALIDAZIONE (AGGIORNATO PER IL NUOVO MODELLO)
+  // Per ripassare i dati al costruttore ResourceSite senza perdere informazioni,
+  // dobbiamo "appiattire" i nuovi blocchi dinamici ('spec' e 'connection')
+  // anziché i vecchi 'compute' e 'tech'.
+  // Poi sovrascriviamo le vecchie info con updatedData in arrivo dal frontend.
   const mergedData = {
     ...existingSite,
-    ...existingSite.compute,
-    ...existingSite.tech,
+    ...existingSite.spec, // Estrae os, cpuCores, o workerNodes in base al tipo
+    ...existingSite.connection, // Estrae IP e Chiavi per non perderli nell'aggiornamento
     ...updatedData,
     id: Number(id) // L'ID è intoccabile, forziamo quello originale
   };
 
-  // Creiamo una nuova istanza pulita e validata
+  // Creiamo una nuova istanza pulita e validata che ricostruirà l'albero JSON
   const updatedSite = new ResourceSite(mergedData);
 
-  // 5. Sostituiamo il vecchio sito con quello appena generato all'interno dell'array
+  // 5. Sostituiamo il vecchio sito con quello appena generato
   mockSites[index] = updatedSite;
 
   // 6. Restituiamo il sito aggiornato al Controller
