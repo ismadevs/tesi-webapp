@@ -188,7 +188,7 @@ export default function EditSiteModal({ siteToEdit, onClose, onSave, existingSit
           </form>
         </div>
 
-        <div className="p-5 bg-gray-50 flex justify-end gap-3 border-t border-gray-100 rounded-b-3xl shrink-0">
+        <div className="p-5 flex justify-end gap-3 border-t border-gray-100 rounded-b-3xl shrink-0">
           <button type="button" onClick={onClose} className="px-6 py-2.5 text-sm font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer">
             Cancel
           </button>
