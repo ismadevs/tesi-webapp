@@ -1,236 +1,263 @@
-import { useState } from 'react';
-import { X } from 'lucide-react'; // L'unica icona concessa è la X per chiudere
+import { useState, useEffect } from 'react';
+import { X, MonitorStop, ShipWheel } from 'lucide-react';
 
-export default function AddSiteModal({ onClose, onSave, existingSites = [] }){
-  // ==========================================
-  // 1. STATI DEL FORM
-  // ==========================================
+export default function AddSiteModal({ onClose, onSave, existingSites = [] }) {
+  const [currentStep, setCurrentStep] = useState(1);
+  const [resourceType, setResourceType] = useState(null);
+  const [error, setError] = useState('');
+
   const [name, setName] = useState('');
   const [status, setStatus] = useState('online');
+
   const [cpuCores, setCpuCores] = useState(4);
   const [ramGB, setRamGB] = useState(8);
   const [storageTB, setStorageTB] = useState(1);
-  const [hostingType, setHostingType] = useState('Docker');
   const [os, setOs] = useState('Ubuntu');
 
-  // L'IP gestito come array di 4 stringhe (ottetti)
-  const [ipParts, setIpParts] = useState(['192', '168', '1', '10']);
+  const [k8sVersion, setK8sVersion] = useState('v1.28.0');
+  const [workerNodes, setWorkerNodes] = useState(3);
+  const [nodeFlavor, setNodeFlavor] = useState('Medium (4 Cores, 8GB RAM)');
 
-  // Stato per gli errori di validazione
-  const [error, setError] = useState('');
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        setError('');
+      }, 2000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
 
-  // ==========================================
-  // 2. DIZIONARI DEI DATI HARDCODED (Come da richiesta)
-  // ==========================================
+  const osOptions = ['Ubuntu', 'Debian', 'Rocky Linux', 'AlmaLinux', 'RHEL', 'Windows Server'];
   const coresOptions = [1, 2, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 160, 192];
   const ramOptions = [1, 2, 4, 8, 16, 32, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 1536, 2048, 3072];
-  const storageOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 20, 24, 28, 32];
-
-  const hostingOptions = [
-    'Docker', 'Kubernetes', 'Shared Cloud',
-    'Dedicated Instance', 'Dedicated Host', 'Bare Metal'
+  const storageOptions = [0.25, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 20, 24, 28, 32];
+  
+  const versionOptions = ['v1.27.3', 'v1.28.0', 'v1.29.0'];
+  const flavorOptions = [
+    'Small (2 Cores, 4GB RAM)', 
+    'Medium (4 Cores, 8GB RAM)', 
+    'Large (8 Cores, 32GB RAM)',
+    'X-Large (16 Cores, 64GB RAM)',
+    'GPU-Heavy (8 Cores, 64GB RAM, 1x NVIDIA A100)'
   ];
-  const osOptions = [
-    'Ubuntu', 'Debian', 'Rocky Linux', 'AlmaLinux', 'RHEL', 'Windows Server'
-  ];
 
-  // ==========================================
-  // 3. LOGICA DI VALIDAZIONE E SALVATAGGIO
-  // ==========================================
-
-  // Gestore per l'input dell'IP (accetta solo numeri tra 0 e 255)
-  const handleIpChange = (index, value) => {
-    // Rimuove tutto ciò che non è un numero
-    const cleanValue = value.replace(/\D/g, '');
-    if (cleanValue === '' || (Number(cleanValue) >= 0 && Number(cleanValue) <= 255)) {
-      const newIpParts = [...ipParts];
-      newIpParts[index] = cleanValue;
-      setIpParts(newIpParts);
+  const handleNext = () => {
+    if (currentStep === 1 && resourceType) {
+      setError('');
+      setCurrentStep(2);
     }
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setError(''); // Resetta l'errore precedente
+  const handleBack = () => {
+    setError('');
+    setCurrentStep(1);
+  };
 
-    // 1. Controllo vuoto
-    if (!name.trim()) {
-      return setError('Name cannot be empty.');
-    }
+  const handleSubmit = () => {
+    setError('');
 
-    // 2. Controllo caratteri strani (Accetta lettere, numeri, spazi e trattini)
+    if (!name.trim()) return setError('Name cannot be empty.');
     const nameRegex = /^[a-zA-Z0-9\s\-]+$/;
-    if (!nameRegex.test(name)) {
-      return setError('Name can only contain letters, numbers, spaces, and dashes.');
-    }
-
-    // 3. Controllo doppioni (case insensitive)
+    if (!nameRegex.test(name)) return setError('Name can only contain letters, numbers, spaces, and dashes.');
+    
     const isDuplicate = existingSites.some(site => site.name.toLowerCase() === name.trim().toLowerCase());
-    if (isDuplicate) {
-      return setError('A site with this name already exists.');
-    }
+    if (isDuplicate) return setError('A resource with this name already exists.');
 
-    // 4. Controllo IP completo
-    if (ipParts.some(part => part === '')) {
-      return setError('Please complete all 4 fields of the IP address.');
-    }
-
-    // Costruiamo l'oggetto da inviare (l'ID non c'è, lo metterà il backend!)
-    const newSiteData = {
+    let newSiteData = {
       name: name.trim(),
       status: status,
-      cpuCores: Number(cpuCores),
-      ramGB: Number(ramGB),
-      storageTB: Number(storageTB),
-      hostingType: hostingType,
-      os: os,
-      ipAddress: ipParts.join('.')
+      resourceType: resourceType
     };
 
-    // Passiamo i dati formattati alla funzione onSave (che scriveremo in ResourcesPage)
+    if (resourceType === 'slices-vm') {
+      newSiteData = { ...newSiteData, os, cpuCores: Number(cpuCores), ramGB: Number(ramGB), storageTB: Number(storageTB) };
+    } else {
+      newSiteData = { ...newSiteData, k8sVersion, workerNodes: Number(workerNodes), nodeFlavor };
+    }
+
     onSave(newSiteData);
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 backdrop-blur-md animate-in fade-in duration-200" onClick={onClose}>
+      <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col h-[540px]" onClick={(e) => e.stopPropagation()}>
 
-      <div
-        className="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-
-        {/* HEADER */}
-        <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-100">
-          <h2 className="text-xl font-bold text-black tracking-tight">Add New Site</h2>
-          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors cursor-pointer">
-            <X size={20} strokeWidth={2.5} />
-          </button>
+        <div className="shrink-0">
+          <div className="flex items-center justify-between p-6 pb-5">
+            <div>
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1 block">
+                Step {currentStep} of 2
+              </span>
+              <h2 className="text-xl font-bold text-black tracking-tight">
+                {currentStep === 1 ? 'Choose Resource Type' : `Set ${resourceType === 'slices-vm' ? 'VM' : 'Cluster'} Parameters`}
+              </h2>
+            </div>
+            <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors cursor-pointer">
+              <X size={20} strokeWidth={2.5} />
+            </button>
+          </div>
+          <div className="w-full h-1 bg-gray-100">
+            <div 
+              className="h-full bg-primary transition-all duration-300 ease-out"
+              style={{ width: currentStep === 1 ? '50%' : '100%' }}
+            />
+          </div>
         </div>
 
-        {/* BODY (Form) */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-
-          {/* Mostra eventuali errori in rosso stilizzato */}
+        <div className={`p-8 flex-1 flex flex-col justify-start overflow-y-auto ${error ? 'no-scrollbar' : ''}`}>
           {error && (
-            <div className="p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl font-medium">
-              {error}
+             <div className="mb-6 p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl font-medium animate-in fade-in slide-in-from-top-2 shrink-0">
+               {error}
+             </div>
+          )}
+
+          {currentStep === 1 && (
+            <div className="flex items-center justify-center gap-6 h-full">
+              <div 
+                onClick={() => setResourceType('slices-vm')}
+                className={`w-48 h-48 rounded-2xl border-2 flex flex-col items-center justify-center cursor-pointer transition-all ${resourceType === 'slices-vm' ? 'text-primary border-primary border-3 scale-105' : 'border-gray-100 bg-white text-black'}`}
+              >
+                <MonitorStop size={48} className="mb-4" />
+                <h3 className="font-bold text-black">Slices VM</h3>
+              </div>
+
+              <div 
+                onClick={() => setResourceType('kubernetes-cluster')}
+                className={`w-48 h-48 rounded-2xl border-2 flex flex-col items-center justify-center cursor-pointer transition-all ${resourceType === 'kubernetes-cluster' ? 'text-primary border-primary border-3 scale-105' : 'border-gray-100 bg-white text-black'}`}
+              >
+                <ShipWheel size={48} className="mb-4" />
+                <h3 className="font-bold text-black">K8S Cluster</h3>
+              </div>
             </div>
           )}
 
-          {/* ==========================================
-              SEZIONE: GENERAL
-              ========================================== */}
-          <div className="space-y-4">
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Site Name</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Main Database Cluster"
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                />
-              </div>
-              <div className="w-1/3">
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Status</label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer"
-                >
-                  <option value="online">Online</option>
-                  <option value="offline">Offline</option>
-                  <option value="maintenance">Maintenance</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* ==========================================
-              SEZIONE: COMPUTE (Griglia a 3 colonne)
-              ========================================== */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Compute Allocation</label>
-            <div className="grid grid-cols-3 gap-4">
-
-              <div className="relative">
-                <select value={cpuCores} onChange={(e) => setCpuCores(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer">
-                  {coresOptions.map(num => <option key={num} value={num}>{num} Cores</option>)}
-                </select>
-              </div>
-
-              <div className="relative">
-                <select value={ramGB} onChange={(e) => setRamGB(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer">
-                  {ramOptions.map(num => <option key={num} value={num}>{num} GB RAM</option>)}
-                </select>
-              </div>
-
-              <div className="relative">
-                <select value={storageTB} onChange={(e) => setStorageTB(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer">
-                  {storageOptions.map(num => <option key={num} value={num}>{num} TB SSD</option>)}
-                </select>
-              </div>
-
-            </div>
-          </div>
-
-          {/* ==========================================
-              SEZIONE: INFRASTRUCTURE & NETWORK
-              ========================================== */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Hosting Type</label>
-              <select value={hostingType} onChange={(e) => setHostingType(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer">
-                {hostingOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Operating System</label>
-              <select value={os} onChange={(e) => setOs(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer">
-                {osOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* IP ADDRESS CUSTOM INPUT */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">IPv4 Address</label>
-            <div className="flex items-center gap-2">
-              {ipParts.map((part, index) => (
-                <div key={index} className="flex items-center gap-2">
+          {currentStep === 2 && (
+            <div className="space-y-6 animate-in slide-in-from-right-4 duration-300 max-w-xl mx-auto w-full py-2">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Resource Name</label>
                   <input
                     type="text"
-                    maxLength={3}
-                    value={part}
-                    onChange={(e) => handleIpChange(index, e.target.value)}
-                    className="w-16 text-center px-2 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Frontend Server"
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                   />
-                  {/* Mettiamo il puntino tra i campi, ma non dopo l'ultimo */}
-                  {index < 3 && <span className="text-gray-400 font-bold">.</span>}
                 </div>
-              ))}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Status</label>
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer"
+                  >
+                    <option value="online">Online</option>
+                    <option value="offline">Offline</option>
+                    <option value="in-use">In Use</option>
+                    <option value="maintenance">Maintenance</option>
+                  </select>
+                </div>
+              </div>
+
+              <hr className="border-gray-100" />
+
+              {resourceType === 'slices-vm' ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="col-span-3">
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Operating System</label>
+                      <select value={os} onChange={(e) => setOs(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer">
+                        {osOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">CPU Cores</label>
+                      <select value={cpuCores} onChange={(e) => setCpuCores(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer">
+                        {coresOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">RAM (GB)</label>
+                      <select value={ramGB} onChange={(e) => setRamGB(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer">
+                        {ramOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Storage (TB)</label>
+                      <select value={storageTB} onChange={(e) => setStorageTB(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer">
+                        {storageOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">K8s Version</label>
+                      <select value={k8sVersion} onChange={(e) => setK8sVersion(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer">
+                        {versionOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Worker Nodes</label>
+                      <input 
+                        type="number" 
+                        min="1" 
+                        value={workerNodes} 
+                        onChange={(e) => setWorkerNodes(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Node Flavor</label>
+                    <select value={nodeFlavor} onChange={(e) => setNodeFlavor(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer">
+                      {flavorOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          )}
+        </div>
 
-          {/* FOOTER AZIONI */}
-          <div className="pt-4 flex justify-end gap-3 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-2.5 text-sm font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
+        <div className="p-5 flex items-center justify-end gap-3 border-t border-gray-100 rounded-b-3xl shrink-0">
+          <button 
+            type="button" 
+            onClick={currentStep === 1 ? onClose : handleBack} 
+            className="px-6 py-2.5 text-sm font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer"
+          >
+            {currentStep === 1 ? 'Cancel' : 'Back'}
+          </button>
+          
+          {currentStep === 1 ? (
+            <button 
+              type="button" 
+              onClick={handleNext}
+              disabled={!resourceType}
+              className={`px-6 py-2.5 text-sm font-semibold rounded-xl transition-all ${
+                resourceType 
+                  ? 'bg-primary text-white hover:bg-blue-600 cursor-pointer shadow-sm' 
+                  : 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-70'
+              }`}
             >
-              Cancel
+              Continue
             </button>
-            <button
-              type="submit"
-              className="px-5 py-2.5 text-sm font-semibold text-white bg-primary rounded-xl hover:bg-blue-600 transition-colors cursor-pointer shadow-sm"
+          ) : (
+            <button 
+              type="button" 
+              onClick={handleSubmit}
+              className="px-6 py-2.5 text-sm font-semibold text-white bg-primary rounded-xl hover:bg-blue-600 transition-colors cursor-pointer shadow-sm"
             >
-              Create Site
+              Add Site
             </button>
-          </div>
+          )}
+        </div>
 
-        </form>
       </div>
     </div>
   );

@@ -43,8 +43,7 @@ export default function DeleteConfirmModal({ site, onClose, onConfirm }) {
         {/* p-10 dà tantissimo spazio al testo, rendendo il design estremamente pulito */}
         <div className="p-10 text-center">
           <p className="text-lg text-gray-700 leading-relaxed">
-            Are you sure you want to delete <strong>{site.name}</strong>?<br/>
-            This action cannot be undone.
+            Are you sure you want to delete <strong>{site.name}</strong>?
           </p>
         </div>
 
