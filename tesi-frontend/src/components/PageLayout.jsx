@@ -42,7 +42,7 @@ export default function PageLayout({ children, topPadding = "pt-35", layoutClass
             Abbiamo sostituito 'margin-top' con 'padding-top'. 
             Il margine (margin) crea spazio spingendo fisicamente il box in basso, bucando i confini dello schermo. 
             Il padding, invece, schiaccia il contenuto verso l'interno, mantenendo intatte le pareti del nostro contenitore! */}
-        <div className={`max-w-6xl w-full mx-auto px-1 flex-1 flex flex-col min-h-0 ${topPadding} ${layoutClass}`}>
+        <div className={`max-w-9/10 w-full mx-auto px-1 flex-1 flex flex-col min-h-0 ${topPadding} ${layoutClass}`}>
           
           {/* Qui React inietta la tua pagina vera e propria */}
           {children}
