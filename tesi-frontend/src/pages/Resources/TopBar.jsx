@@ -25,7 +25,7 @@ export default function TopBar({ searchQuery, setSearchQuery, onOpenAdd }) {
           <div className="relative">
             <input
               type="text"
-              placeholder="Search..."
+              placeholder="Search"
               // 2. Colleghiamo il valore dell'input allo stato di React
               value={searchQuery}
               // 3. Ogni volta che l'utente preme un tasto, aggiorniamo lo stato

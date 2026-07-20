@@ -54,9 +54,9 @@ export default function Sidebar(){
             <span>Resources</span>
           </Link>
 
-          <Link to="/simulations" className={getSidebarItemStyle('/simulations')}>
-            <Boxes strokeWidth={currentPath.startsWith('/simulations') ? 2 : 2} size={26} />
-            <span>Simulations</span>
+          <Link to="/experiments" className={getSidebarItemStyle('/experiments')}>
+            <Boxes strokeWidth={currentPath.startsWith('/experiments') ? 2 : 2} size={26} />
+            <span>Experiments</span>
           </Link>
 
         </nav>

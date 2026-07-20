@@ -19,6 +19,9 @@ import { checkJwt } from './src/middlewares/auth.middleware.js';
 // IMPORTA LE ROTTE DELLE RISORSE
 import resourceRoutes from './src/routes/resourceRoutes.js';
 
+// IMPORTA LE ROTTE DEGLI ESPERIMENTI
+import experimentRoutes from './routes/experimentRoutes.js';
+
 // Carica tutte le variabili presenti nel file .env
 // all'interno dell'oggetto process.env.
 dotenv.config();
@@ -48,6 +51,9 @@ app.use(express.json());
 // Tutte le richieste che iniziano per /api/resources verranno gestite da resourceRoutes
 app.use('/api/resources', resourceRoutes);
 
+// MONTA IL ROUTER DEGLI ESPERIMENTI
+// Tutte le richieste che iniziano per /api/experiments verranno gestite da experimentRoutes
+app.use('/api/experiments', experimentRoutes);
 
 // ===============================
 // ROTTA PUBBLICA

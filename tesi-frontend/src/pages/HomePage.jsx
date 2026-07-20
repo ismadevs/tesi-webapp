@@ -18,8 +18,8 @@ export default function HomePage(){
           {' '}section, it is possible to catalog and administer available servers, defining
           their hardware and software characteristics, such as computational capacity, memory,
           and hosting technologies. The{' '}
-          <Link to="/simulations" className="text-primary font-bold cursor-pointer transition-colors">
-            Simulations
+          <Link to="/experiments" className="text-primary font-bold cursor-pointer transition-colors">
+            Experiments
           </Link>
           {' '}section allows you to create and manage computing scenarios, associating one or
           more resources to the experiments to achieve reproducible and easily monitored

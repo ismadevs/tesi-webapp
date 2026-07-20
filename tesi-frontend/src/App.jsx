@@ -11,7 +11,7 @@ import { toast } from 'react-hot-toast';
 import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
 import ResourcesPage from './pages/Resources/ResourcesPage';
-import SimulationsPage from './pages/Simulations/SimulationsPage';
+import ExperimentsPage from './pages/Experiments/ExperimentsPage';
 
 // Importo il componente per proteggere le pagine private della webapp
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -127,12 +127,12 @@ function App() {
           }
         />
 
-        {/* ROTTA PRIVATA (URL: /simulations) */}
+        {/* ROTTA PRIVATA (URL: /experiments) */}
         <Route
-          path="/simulations"
+          path="/experiments"
           element={
             <ProtectedRoute isAuthenticated={isAuthenticated}>
-              <SimulationsPage />
+              <ExperimentsPage />
             </ProtectedRoute>
           }
         />
