@@ -20,7 +20,7 @@ export default function ExperimentsPage() {
     const fetchExperiments = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch('/api/experiments');
+        const response = await fetch('http://localhost:3000/api/experiments');
         
         if (!response.ok) {
           throw new Error('Errore nel recupero degli esperimenti.');

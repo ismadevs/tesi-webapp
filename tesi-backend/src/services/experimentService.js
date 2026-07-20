@@ -5,7 +5,7 @@
 // Il Service fa da ponte tra il Controller (che gestisce le richieste HTTP)
 // e il Database (in questo caso il nostro mock).
 
-import  {mockExperiments} from '../models/mockDatabase.js';               
+import  { mockExperiments } from '../models/mockDatabase.js';               
 
 /**
  * Recupera l'elenco completo di tutti gli esperimenti.

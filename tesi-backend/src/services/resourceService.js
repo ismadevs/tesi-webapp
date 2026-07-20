@@ -5,7 +5,7 @@
 // Riceve ordini dal Controller, esegue calcoli complessi, applica le regole
 // di business dell'applicazione e dialoga con il livello dei Dati (Model/Database).
 
-import {mockSites} from '../models/mockDatabase.js';
+import { mockSites } from '../models/mockDatabase.js';
 import ResourceSite from '../models/ResourceSite.js';
 
 // ==========================================

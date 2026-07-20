@@ -259,24 +259,53 @@ export let mockSites = [
 export let mockExperiments = [
   new Experiment({
     id: 101,
-    name: "Telecontrol Gateway Load Test",
-    description: "Stress test sull'infrastruttura di telecontrollo per verificare la latenza.",
+    name: "Telecontrol Simulator Load Test",
+    description: "Stress test massivo sui nodi ad albero del simulatore di telecontrollo per valutare la latenza di risposta del backend.",
     status: "completed",
-    createdAt: "2026-07-10T09:00:00Z",
+    createdAt: "2026-06-10T09:15:00Z",
     allocatedResources: [
-      { resourceId: 2, type: "full" },
-      { resourceId: 5, type: "full" }
+      { resourceId: 1, type: "namespace", namespaceName: "sim-backend" }, 
+      { resourceId: 2, type: "full" }
     ]
   }),
   new Experiment({
     id: 102,
-    name: "Data Science Algorithm v2",
-    description: "Esecuzione batch del nuovo algoritmo di aggregazione dati.",
+    name: "ASP.NET Core API Benchmarking",
+    description: "Valutazione dei tempi di risposta delle API REST in C# sotto un carico simulato di 10.000 richieste concorrenti al secondo.",
     status: "running",
     createdAt: "2026-07-18T14:30:00Z",
     allocatedResources: [
-      { resourceId: 1, type: "namespace", namespaceName: "ds-algo-v2" },
+      { resourceId: 3, type: "full" }
+    ]
+  }),
+  new Experiment({
+    id: 103,
+    name: "React Frontend Render Profiling",
+    description: "Analisi delle performance di rendering dei componenti UI della dashboard con flusso dati in tempo reale via WebSocket.",
+    status: "stopped",
+    createdAt: "2026-07-19T11:10:00Z",
+    allocatedResources: [
+      { resourceId: 4, type: "namespace", namespaceName: "ui-profiling" }
+    ]
+  }),
+  new Experiment({
+    id: 104,
+    name: "Tree-Structure DB Pathing Optimization",
+    description: "Verifica dell'integrità logica e dei tempi di query sui percorsi ad albero gerarchici nel database principale.",
+    status: "running",
+    createdAt: "2026-07-20T08:45:00Z",
+    allocatedResources: [
+      { resourceId: 1, type: "full" }, 
+      { resourceId: 5, type: "full" }, 
       { resourceId: 7, type: "full" }
     ]
+  }),
+  new Experiment({
+    id: 105,
+    name: "Failover Protocol Rehearsal",
+    description: "Simulazione di caduta improvvisa del nodo master per verificare i tempi di ripristino automatico e la resilienza dei dati.",
+    status: "stopped",
+    createdAt: "2026-07-15T16:20:00Z",
+    allocatedResources: [] // Testiamo anche come appare un esperimento senza risorse allocate
   })
 ];
