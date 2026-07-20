@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import PageLayout from '../../components/PageLayout'; // Adegua il percorso se necessario
 import TopBar from './TopBar';
 import ExperimentsTable from './ExperimentsTable';
+import ExperimentDetail from './ExperimentDetail';
 
 // ==========================================
 // CONTAINER COMPONENT - EXPERIMENTS PAGE
@@ -63,9 +64,53 @@ export default function ExperimentsPage() {
           showAddButton={topBarProps.showAddButton}
         />
 
-        {/* CONTENUTO PRINCIPALE TABLE ESPERIMENTI*/}
-        <div className="flex-1">
-          <ExperimentsTable experiments={experiments} />
+        {/* CONTENUTO PRINCIPALE */}
+        <div className="flex-1 flex flex-col min-h-0">
+          
+          {isLoading ? (
+            <div className="flex-1 flex justify-center items-center text-gray-500 gap-3 mt-10">
+              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+              <p className="font-medium">Caricamento esperimenti...</p>
+            </div>
+          ) : error ? (
+            <div className="p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 font-medium">
+              {error}
+            </div>
+          ) : selectedExperiment ? (
+            
+            // ==========================================
+            // VISTA: DETTAGLIO ESPERIMENTO
+            // ==========================================
+            <ExperimentDetail 
+              experiment={selectedExperiment} 
+              onBack={() => {
+                // 1. Svuotiamo lo stato per far riapparire la tabella
+                setSelectedExperiment(null);
+                // 2. Ripristiniamo l'URL originale
+                window.history.pushState({}, '', '/experiments');
+              }}
+            />
+            
+          ) : (
+            
+            // ==========================================
+            // VISTA: TABELLA PRINCIPALE
+            // ==========================================
+            <ExperimentsTable 
+               experiments={experiments} 
+               onRowClick={(exp) => {
+                 // 1. Salviamo l'esperimento nello stato
+                 setSelectedExperiment(exp);
+                 
+                 // 2. Creiamo uno "slug" pulito per l'URL (es. "Load Test" -> "load-test")
+                 const urlSlug = exp.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                 
+                 // 3. Aggiorniamo l'URL nel browser senza ricaricare la pagina
+                 window.history.pushState({}, '', `/experiments/${urlSlug}`);
+               }} 
+            />
+            
+          )}
         </div>
 
       </div>

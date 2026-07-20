@@ -6,7 +6,7 @@ import { Box, Radio, Database, Calendar } from 'lucide-react';
 // Questo componente si occupa ESCLUSIVAMENTE di renderizzare i dati visivamente.
 // Riceve la lista degli esperimenti (tramite la prop 'experiments') dal componente genitore.
 
-export default function ExperimentsTable({ experiments }) {
+export default function ExperimentsTable({ experiments, onRowClick }) {
   
   // ==========================================
   // HELPER: GESTIONE DEI BADGE DI STATO
@@ -113,8 +113,8 @@ export default function ExperimentsTable({ experiments }) {
               experiments.map((exp) => (
                 <tr
                   key={exp.id}
-                  // 'group': Utile per gli effetti hover combinati (es. cambiare colore al testo interno)
-                  className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50/50 transition-colors group"
+                  onClick={() => onRowClick(exp)}
+                  className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50/50 transition-colors group cursor-pointer"
                 >
                   {/* Cella Nome: Mostriamo solo il titolo (descrizione rimossa), allineato al centro (align-middle) */}
                   <td className="py-4 px-5 border-r border-gray-100 last:border-r-0 align-middle">
