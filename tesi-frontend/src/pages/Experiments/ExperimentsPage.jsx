@@ -57,16 +57,19 @@ export default function ExperimentsPage() {
     <PageLayout topPadding="pt-0" layoutClass="pb-8 overflow-y-auto">
       <div className="animate-in fade-in duration-300 flex flex-col h-full">
         
-        {/* TOPBAR DINAMICA */}
-        <TopBar 
-          title={topBarProps.title}
-          description={topBarProps.description}
-          showAddButton={topBarProps.showAddButton}
-        />
+        {/* TOPBAR DINAMICA - Appare solo se NON siamo nel dettaglio di un esperimento */}
+        {!selectedExperiment && (
+          <TopBar 
+            title={topBarProps.title}
+            description={topBarProps.description}
+            showAddButton={topBarProps.showAddButton}
+          />
+        )}
 
         {/* CONTENUTO PRINCIPALE */}
         <div className="flex-1 flex flex-col min-h-0">
           
+          {/* Gestione degli stati: Caricamento, Errore o Contenuto */}
           {isLoading ? (
             <div className="flex-1 flex justify-center items-center text-gray-500 gap-3 mt-10">
               <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
@@ -84,9 +87,7 @@ export default function ExperimentsPage() {
             <ExperimentDetail 
               experiment={selectedExperiment} 
               onBack={() => {
-                // 1. Svuotiamo lo stato per far riapparire la tabella
                 setSelectedExperiment(null);
-                // 2. Ripristiniamo l'URL originale
                 window.history.pushState({}, '', '/experiments');
               }}
             />
@@ -99,13 +100,8 @@ export default function ExperimentsPage() {
             <ExperimentsTable 
                experiments={experiments} 
                onRowClick={(exp) => {
-                 // 1. Salviamo l'esperimento nello stato
                  setSelectedExperiment(exp);
-                 
-                 // 2. Creiamo uno "slug" pulito per l'URL (es. "Load Test" -> "load-test")
                  const urlSlug = exp.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-                 
-                 // 3. Aggiorniamo l'URL nel browser senza ricaricare la pagina
                  window.history.pushState({}, '', `/experiments/${urlSlug}`);
                }} 
             />
