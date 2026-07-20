@@ -20,7 +20,7 @@ import { checkJwt } from './src/middlewares/auth.middleware.js';
 import resourceRoutes from './src/routes/resourceRoutes.js';
 
 // IMPORTA LE ROTTE DEGLI ESPERIMENTI
-import experimentRoutes from './routes/experimentRoutes.js';
+import experimentRoutes from './src/routes/experimentRoutes.js';
 
 // Carica tutte le variabili presenti nel file .env
 // all'interno dell'oggetto process.env.

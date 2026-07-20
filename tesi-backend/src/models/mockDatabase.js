@@ -1,6 +1,8 @@
 import ResourceSite from './ResourceSite.js';
+import Experiment from './Experiment.js';
 
-let mockSites = [
+// Array siti di risorse
+export let mockSites = [
   new ResourceSite({
     id: 1,
     name: "Main Research Cluster",
@@ -253,4 +255,28 @@ let mockSites = [
   })
 ];
 
-export default mockSites;
+// L'ARRAY DEGLI ESPERIMENTI
+export let mockExperiments = [
+  new Experiment({
+    id: 101,
+    name: "Telecontrol Gateway Load Test",
+    description: "Stress test sull'infrastruttura di telecontrollo per verificare la latenza.",
+    status: "completed",
+    createdAt: "2026-07-10T09:00:00Z",
+    allocatedResources: [
+      { resourceId: 2, type: "full" },
+      { resourceId: 5, type: "full" }
+    ]
+  }),
+  new Experiment({
+    id: 102,
+    name: "Data Science Algorithm v2",
+    description: "Esecuzione batch del nuovo algoritmo di aggregazione dati.",
+    status: "running",
+    createdAt: "2026-07-18T14:30:00Z",
+    allocatedResources: [
+      { resourceId: 1, type: "namespace", namespaceName: "ds-algo-v2" },
+      { resourceId: 7, type: "full" }
+    ]
+  })
+];
