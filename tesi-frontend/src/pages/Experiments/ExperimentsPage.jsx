@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import PageLayout from '../../components/PageLayout'; // Adegua il percorso se necessario
 import TopBar from './TopBar';
+import ExperimentsTable from './ExperimentsTable';
 
 // ==========================================
 // CONTAINER COMPONENT - EXPERIMENTS PAGE
@@ -62,12 +63,9 @@ export default function ExperimentsPage() {
           showAddButton={topBarProps.showAddButton}
         />
 
-        {/* CONTENUTO PRINCIPALE */}
-        {/* In base alle tue indicazioni, per ora mostriamo solo un box di test */}
-        <div className="flex-1 flex items-center justify-center border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50 min-h-[300px]">
-           <p className="text-xl font-semibold text-gray-400">
-             Table qui
-           </p>
+        {/* CONTENUTO PRINCIPALE TABLE ESPERIMENTI*/}
+        <div className="flex-1">
+          <ExperimentsTable experiments={experiments} />
         </div>
 
       </div>
