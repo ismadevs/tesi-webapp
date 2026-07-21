@@ -1,116 +1,92 @@
-// Importiamo le singole funzioni destrutturate dal Service.
-// Il Controller non ha idea di come vengano recuperati o salvati i dati nel database,
-// il suo compito è semplicemente delegare la "logica di business" a queste funzioni.
-import { createSite, getAllSites, deleteSite, updateSite } from '../services/resourceService.js';
+// Importiamo le singole funzioni destrutturate dal Service aggiornato.
+import { createResource, getAllResources, deleteResource, updateResource } from '../services/resourceService.js';
 
+// ==========================================
 // CONTROLLER PER LA LETTURA (GET)
-// req (Request): l'oggetto che contiene tutte le informazioni della chiamata in arrivo (header, parametri, ecc.)
-// res (Response): l'oggetto che utilizziamo per confezionare e spedire la risposta indietro al browser/React.
-export const getSites = (req, res) => {
-  // Avvolgiamo tutto in un blocco try/catch. È fondamentale per evitare che 
-  // un errore imprevisto faccia "crashare" (spegnere) l'intero server Node.js.
+// ==========================================
+export const getResources = (req, res) => {
   try {
-    // 1. DELEGA: Chiamiamo il Service per farci consegnare i dati.
-    const sites = getAllSites();
-    
-    // 2. RISPOSTA HTTP: Impostiamo lo Status Code 200 (OK), che indica che tutto
-    // è andato a buon fine, e convertiamo l'array 'sites' in formato JSON da inviare al client.
-    res.status(200).json(sites);
+    const resources = getAllResources();
+    res.status(200).json(resources);
   } catch (error) {
-    // 3. GESTIONE ERRORE: Se qualcosa si rompe (es. database non raggiungibile),
-    // stampiamo l'errore tecnico nel terminale per aiutare noi sviluppatori nel debug...
-    console.error("🚨 (Resources) ERRORE REALE DURANTE LA GET:", error); 
-    
-    // ...e rispondiamo al frontend con un codice 500 (Internal Server Error)
-    // mascherando i dettagli tecnici all'utente finale.
-    res.status(500).json({ error: "Errore nel recupero dei siti" });
+    console.error("🚨 (Resources) ERRORE REALE DURANTE LA GET:", error);
+    res.status(500).json({ error: "Errore nel recupero delle risorse" });
   }
 };
 
+// ==========================================
 // CONTROLLER PER LA CREAZIONE (POST)
-export const addSite = (req, res) => {
+// ==========================================
+export const addResource = (req, res) => {
   try {
-    // 1. ESTRAZIONE DATI: req.body contiene il payload (il pacchetto JSON) 
-    // che l'utente ha inviato dal frontend tramite la richiesta POST.
-    const siteData = req.body;
-    
-    // 2. VALIDAZIONE BASE: Ci assicuriamo che i requisiti minimi siano rispettati.
-    if (!siteData.name) {
-      // Se manca il nome (che è obbligatorio), blocchiamo l'esecuzione con il 'return'
+    const resourceData = req.body;
+
+    // 1. VALIDAZIONE BASE E REQUISITI SLICES-RI
+    if (!resourceData.name) {
       return res.status(400).json({ error: "Il campo 'name' è obbligatorio." });
     }
 
-    // NUOVA VALIDAZIONE: Il tipo di risorsa è ora il pilastro centrale dell'architettura.
-    // Se non c'è, o se è un valore inventato, blocchiamo la richiesta.
-    const validTypes = ['slices-vm', 'kubernetes-cluster'];
-    if (!siteData.resourceType || !validTypes.includes(siteData.resourceType)) {
-      return res.status(400).json({ error: "Devi specificare un 'resourceType' valido ('slices-vm' o 'kubernetes-cluster')." });
+    // Le risorse non possono esistere fluttuanti, devono appartenere a un esperimento[cite: 1, 2].
+    if (!resourceData.experiment) {
+      return res.status(400).json({ error: "Ogni risorsa deve essere associata a un esperimento." });
     }
 
-    // 3. ESECUZIONE DELLA LOGICA: I dati sono validi, quindi li passiamo al Service.
-    // Il Service applicherà il suo "stampino", genererà l'ID e i dati di connessione.
-    const newSite = createSite(siteData);
-    
-    // 4. RISPOSTA DI SUCCESSO: Usiamo lo Status Code 201 (Created), che è lo standard REST
-    // per confermare l'avvenuta creazione di una risorsa.
-    res.status(201).json(newSite);
+    // Validiamo i due siti principali della piattaforma.
+    const validSites = ['be-gent1-bi-vm1', 'be-gent1-bi-baremetal1'];
+    if (!resourceData.siteId || !validSites.includes(resourceData.siteId)) {
+      return res.status(400).json({ error: "Devi specificare un 'siteId' valido ('be-gent1-bi-vm1' o 'be-gent1-bi-baremetal1')." });
+    }
+
+    // 2. ESECUZIONE DELLA LOGICA
+    const newResource = createResource(resourceData);
+
+    // 3. RISPOSTA DI SUCCESSO
+    res.status(201).json(newResource);
   } catch (error) {
-    // 5. GESTIONE ERRORE: Catturiamo e gestiamo un'eventuale rottura del server.
     console.error("🚨 (Resources) ERRORE REALE DURANTE LA POST:", error);
     res.status(500).json({ error: "Errore interno del server" });
   }
 };
 
+// ==========================================
 // CONTROLLER PER L'ELIMINAZIONE (DELETE)
-export const removeSite = (req, res) => {
+// ==========================================
+export const removeResource = (req, res) => {
   try {
-    // 1. ESTRAZIONE PARAMETRO: Leggiamo l'id dalle variabili dell'URL (req.params)
     const { id } = req.params;
+    const isDeleted = deleteResource(id);
 
-    // 2. DELEGA: Chiediamo al Service di eliminare il sito con questo ID
-    const isDeleted = deleteSite(id);
-
-    // 3. VERIFICA: Se il Service restituisce false, rispondiamo con un errore 404 (Not Found)
     if (!isDeleted) {
       return res.status(404).json({ error: `Risorsa con ID ${id} non trovata.` });
     }
 
-    // 4. RISPOSTA DI SUCCESSO: Inviamo uno status 200 OK con un JSON di conferma
     res.status(200).json({ message: "Risorsa eliminata con successo." });
-
   } catch (error) {
     console.error("🚨 (Resources) ERRORE REALE DURANTE LA DELETE:", error);
     res.status(500).json({ error: "Errore interno del server durante l'eliminazione" });
   }
 };
 
+// ==========================================
 // CONTROLLER PER LA MODIFICA (PUT)
-export const editSite = (req, res) => {
+// ==========================================
+export const editResource = (req, res) => {
   try {
-    // 1. ESTRAZIONE: Prendiamo l'ID dall'URL e i nuovi dati dal corpo della richiesta
     const { id } = req.params;
-    const siteData = req.body;
+    const resourceData = req.body;
 
-    // 2. VALIDAZIONE BASE: Se l'utente sta cercando di cambiare il nome, non può essere vuoto
-    if (siteData.name !== undefined && !siteData.name.trim()) {
-      return res.status(400).json({ error: "Il campo 'name' è obbligatorio." });
+    // Se prova a modificare il nome, controlliamo che non sia vuoto
+    if (resourceData.name !== undefined && !resourceData.name.trim()) {
+      return res.status(400).json({ error: "Il campo 'name' non può essere vuoto." });
     }
 
-    // Nota Architetturale: Di norma, in un ambiente cloud reale, non si permette 
-    // a un utente di cambiare il 'resourceType' (trasformare una VM in un Cluster). 
-    // Lo diamo per assodato e passiamo i dati al Service per la gestione strutturale.
+    const updatedResource = updateResource(id, resourceData);
 
-    // 3. DELEGA AL SERVICE: Passiamo ID e dati aggiornati
-    const updatedSite = updateSite(id, siteData);
-
-    // 4. VERIFICA: Se il service restituisce null, significa che quel sito non esiste più
-    if (!updatedSite) {
+    if (!updatedResource) {
       return res.status(404).json({ error: `Risorsa con ID ${id} non trovata.` });
     }
 
-    // 5. SUCCESSO: Rispondiamo con il 200 (OK) e restituiamo il sito aggiornato al frontend
-    res.status(200).json(updatedSite);
-
+    res.status(200).json(updatedResource);
   } catch (error) {
     console.error("🚨 ERRORE REALE DURANTE LA PUT:", error);
     res.status(500).json({ error: "Errore interno del server durante la modifica" });
