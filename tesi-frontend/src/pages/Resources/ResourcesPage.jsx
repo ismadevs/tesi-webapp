@@ -5,40 +5,34 @@ import PageLayout from '../../components/PageLayout';
 import TopBar from './TopBar';
 import ResourceCard from './ResourceCard';
 import ResourceDetailsModal from './ResourceDetailsModal';
-import DeleteConfirmModal from './DeleteConfirmModal'; 
-import EditSiteModal from './EditSiteModal'; // 
-import AddSiteModal from './AddSiteModal';
+//import DeleteConfirmModal from './DeleteConfirmModal'; 
+//import EditResourceModal from './EditResourceModal'; 
+//import AddResourceModal from './AddResourceModal';   
 
 export default function ResourcesPage(){
   // ==========================================
   // 1. GESTIONE DELLO STATO (STATE MANAGEMENT)
   // ==========================================
-  // Array vuoto di partenza per i dati originali dal database
-  const [sites, setSites] = useState([]);
+  // Array che conterrà le risorse Slices-RI (VM o Baremetal)
+  const [resources, setResources] = useState([]);
   
-  // Booleano per mostrare l'icona di caricamento
+  // Stato di caricamento iniziale
   const [isLoading, setIsLoading] = useState(true);
   
-  // STATO DELLA MODALE INFO: Se è 'null', la modale è invisibile.
-  const [selectedSite, setSelectedSite] = useState(null);
+  // STATI DELLE MODALI
+  const [selectedResource, setSelectedResource] = useState(null); // Modale Info
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);    // Modale Aggiunta
+  const [resourceToDelete, setResourceToDelete] = useState(null); // Modale Eliminazione
+  const [resourceToEdit, setResourceToEdit] = useState(null);     // Modale Modifica
 
-  // STATO DELLA MODALE AGGIUNTA (POST): Controlla se il form di creazione è aperto
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-
-  // STATO DELLA MODALE ELIMINAZIONE (DELETE): Salva l'intero oggetto del sito che si sta per eliminare. Se è null, la modale è chiusa.
-  const [siteToDelete, setSiteToDelete] = useState(null);
-
-  // STATO MODALE MODIFICA: Memorizza il sito da modificare. Se valorizzato, apre la modale.
-  const [siteToEdit, setSiteToEdit] = useState(null);
-
-  // STATO PER LA RICERCA: Salva in tempo reale quello che l'utente scrive nella TopBar
+  // STATO PER LA RICERCA
   const [searchQuery, setSearchQuery] = useState("");
 
   // ==========================================
   // 2. FETCH DEI DATI (CHIAMATA GET AL BACKEND)
   // ==========================================
   useEffect(() => {
-    const fetchSites = async () => {
+    const fetchResources = async () => {
       try {
         const response = await fetch('http://localhost:3000/api/resources');
         
@@ -47,75 +41,58 @@ export default function ResourcesPage(){
         }
         
         const data = await response.json();
-        setSites(data);
+        setResources(data);
       } catch (error) {
-        console.error("Impossibile recuperare i siti:", error);
+        console.error("Impossibile recuperare le risorse:", error);
       } finally {
         setIsLoading(false); 
       }
     };
 
-    fetchSites();
+    fetchResources();
   }, []); 
 
   // ==========================================
-  // 3. LOGICA DI CREAZIONE (CHIAMATA POST AL BACKEND)
+  // 3. LOGICA DI CREAZIONE (CHIAMATA POST)
   // ==========================================
-  // Questa funzione viene chiamata DALLA modale AddSiteModal quando l'utente preme "Create Site"
-  // e il form ha superato tutte le validazioni.
-  const handleCreateSite = async (newSiteData) => {
-
-    // Salviamo un riferimento al toast di caricamento
-    const toastId = toast.loading('Creating site...');
+  const handleCreateResource = async (newResourceData) => {
+    const toastId = toast.loading('Allocating new resource...');
 
     try {
-      // Configuriamo la chiamata fetch per inviare dati (POST)
       const response = await fetch('http://localhost:3000/api/resources', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json' // Diciamo al server che stiamo inviando un JSON
-        },
-        // Convertiamo il nostro oggetto JavaScript in una stringa JSON per viaggiare sulla rete
-        body: JSON.stringify(newSiteData) 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newResourceData) 
       });
 
       if (!response.ok) {
-        throw new Error('Errore nella creazione del sito sul server');
+        throw new Error('Errore nella creazione della risorsa sul server');
       }
 
-      // Il backend ci risponde con l'oggetto appena creato (completo dell'ID auto-generato)
-      const createdSite = await response.json();
+      const createdResource = await response.json();
 
-      // Aggiorniamo la griglia: prendiamo i siti vecchi e aggiungiamo quello nuovo alla fine
-      setSites((prevSites) => [...prevSites, createdSite]);
-
-      // Chiudiamo la modale automaticamente
+      // Aggiorniamo la griglia locale
+      setResources((prev) => [...prev, createdResource]);
       setIsAddModalOpen(false);
 
-      // TOAST DI SUCCESSO! Sostituiamo il toast di caricamento con quello verde
-      toast.success('Resource site added successfully!', {
-        id: toastId, // Aggiorna il toast esistente invece di crearne uno nuovo
-        duration: 4000, // Lo lasciamo a schermo per 4 secondi
+      toast.success('Resource allocated successfully!', {
+        id: toastId,
+        duration: 4000,
       });
 
     } catch (error) {
-      console.error("Errore durante il salvataggio:", error);
-      // TOAST DI ERRORE! Sostituiamo il toast di caricamento con quello rosso
-      toast.error("Failed to create resource site.", {
-        id: toastId,
-      });
+      console.error("Errore durante l'allocazione:", error);
+      toast.error("Failed to allocate resource.", { id: toastId });
     }
   };
 
   // ==========================================
-  // FUNZIONE DI ELIMINAZIONE (DELETE)
+  // 4. LOGICA DI ELIMINAZIONE (CHIAMATA DELETE)
   // ==========================================
-  const handleDeleteSite = async (id) => {
-    // Iniziamo mostrando un toast di caricamento (molto pro)
-    const toastId = toast.loading('Deleting resource site...');
+  const handleDeleteResource = async (id) => {
+    const toastId = toast.loading('Destroying resource...');
 
     try {
-      // Spariamo la richiesta DELETE includendo l'id nell'URL
       const response = await fetch(`http://localhost:3000/api/resources/${id}`, {
         method: 'DELETE'
       });
@@ -124,108 +101,90 @@ export default function ResourcesPage(){
         throw new Error("Errore durante l'eliminazione sul server");
       }
 
-      // Se il server risponde con successo, aggiorniamo lo stato locale in tempo reale.
-      // Usiamo il metodo filter per tenere nell'array solo i siti che NON hanno l'id appena eliminato.
-      setSites((prevSites) => prevSites.filter(site => site.id !== id));
+      // Rimuoviamo la risorsa dall'array locale
+      setResources((prev) => prev.filter(res => res.id !== id));
 
-      // Sostituiamo il toast di caricamento con quello di successo
-      toast.success('Resource site deleted successfully!', {
+      toast.success('Resource destroyed successfully!', {
         id: toastId,
         duration: 4000,
       });
 
-      // Svuota lo stato e nasconde la modale di conferma
-      setSiteToDelete(null);
+      setResourceToDelete(null);
 
     } catch (error) {
-      console.error("Errore durante l'eliminazione:", error);
-      // In caso di errore aggiorniamo il toast con il messaggio rosso
-      toast.error('Failed to delete resource site.', {
-        id: toastId,
-      });
+      console.error("Errore durante la distruzione:", error);
+      toast.error('Failed to destroy resource.', { id: toastId });
     }
   };
 
   // ==========================================
-  // FUNZIONE DI MODIFICA (PUT)
+  // 5. LOGICA DI MODIFICA (CHIAMATA PUT)
   // ==========================================
-  const handleUpdateSite = async (id, updatedData) => {
-    // Avviamo il toast di caricamento per una UX fluida
-    const toastId = toast.loading('Updating resource site...');
+  const handleUpdateResource = async (id, updatedData) => {
+    const toastId = toast.loading('Updating resource metadata...');
 
     try {
-      // Eseguiamo la chiamata PUT specificando l'ID nell'URL
       const response = await fetch(`http://localhost:3000/api/resources/${id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedData)
       });
 
       if (!response.ok) {
-        throw new Error('Errore durante la modifica del sito sul server');
+        throw new Error('Errore durante la modifica della risorsa sul server');
       }
 
-      // Il backend ci restituisce l'oggetto appena aggiornato e validato dal Model
-      const updatedSite = await response.json();
+      const updatedResource = await response.json();
 
-      // Aggiorniamo lo stato: mappiamo l'array esistente e, quando troviamo l'ID corretto,
-      // sostituiamo il vecchio oggetto con quello nuovo restituito da Node.js
-      setSites((prevSites) => prevSites.map(site => site.id === id ? updatedSite : site));
+      setResources((prev) => prev.map(res => res.id === id ? updatedResource : res));
+      setResourceToEdit(null);
 
-      // Chiudiamo la modale di modifica
-      setSiteToEdit(null);
-
-      // Trasformiamo il toast in successo
-      toast.success('Resource site updated successfully!', {
+      toast.success('Resource updated successfully!', {
         id: toastId,
         duration: 4000,
       });
 
     } catch (error) {
       console.error("Errore durante la modifica:", error);
-      // Trasformiamo il toast in errore
-      toast.error('Failed to update resource site.', {
-        id: toastId,
-      });
+      toast.error('Failed to update resource.', { id: toastId });
     }
   };
 
-  // LOGICA DI FILTRAGGIO (RICERCA IN TEMPO REALE)
-  // Filtriamo in modo sicuro accedendo all'IP dentro l'oggetto connection
-  const filteredSites = sites.filter(site => 
-    site.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (site.connection?.ipAddress && site.connection.ipAddress.includes(searchQuery))
+  // ==========================================
+  // 6. LOGICA DI FILTRAGGIO
+  // ==========================================
+  // Filtriamo cercando nel nome assegnato o nel Site ID (es. be-gent1-bi-vm1)
+  const filteredResources = resources.filter(res => 
+    res.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (res.siteId && res.siteId.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
     <PageLayout topPadding="pt-0" layoutClass="overflow-hidden relative">
       <div className="flex flex-col h-full min-h-0 animate-in fade-in duration-300">
+        
         {/* TOP BAR FISSA IN ALTO */}
         <div className="shrink-0">
           <TopBar
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
-            // Passiamo alla TopBar la funzione per aprire la modale quando si clicca "New Site"
             onOpenAdd={() => setIsAddModalOpen(true)}
           />
         </div>
 
         {/* AREA DEL FEED CON SCROLL INDIPENDENTE */}
         <div className="flex-1 overflow-y-auto no-scrollbar pb-20">
-          {/* RENDER CONDIZIONALE */}
           {isLoading ? (
             <div className="h-full flex items-center justify-center">
               <Loader2 className="animate-spin text-gray-300" size={28} />
             </div>
-          ) : sites.length === 0 ? (
+          ) : resources.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <p className="text-gray-400 text-lg tracking-wide font-light">
-                Resources will appear here
+                No resources allocated yet.
               </p>
             </div>
-          ) : filteredSites.length === 0 ? (
+          ) : filteredResources.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center gap-2">
               <p className="text-gray-400 text-lg tracking-wide font-light">
                 No results found for "{searchQuery}"
@@ -234,18 +193,18 @@ export default function ResourcesPage(){
                 onClick={() => setSearchQuery("")}
                 className="text-sm text-primary cursor-pointer"
               >
-                Cancel Search
+                Clear Search
               </button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredSites.map((site) => (
+              {filteredResources.map((resource) => (
                 <ResourceCard
-                  key={site.id}
-                  site={site}
-                  onOpenInfo={setSelectedSite}
-                  onDeleteSite={setSiteToDelete}
-                  onEditSite={setSiteToEdit}
+                  key={resource.id}
+                  resource={resource}
+                  onOpenInfo={setSelectedResource}
+                  onDeleteResource={setResourceToDelete}
+                  onEditResource={setResourceToEdit}
                 />
               ))}
             </div>
@@ -253,50 +212,25 @@ export default function ResourcesPage(){
         </div>
       </div>
 
-      {/* ==========================================
-          5. RENDER MODALE INFO (Dettagli Sito)
-          ========================================== */}
-      {selectedSite && (
+      {/* RENDER DELLE MODALI */}
+      {selectedResource && (
         <ResourceDetailsModal
-          site={selectedSite}
-          onClose={() => setSelectedSite(null)}
+          resource={selectedResource}
+          onClose={() => setSelectedResource(null)}
         />
       )}
 
-      {/* ==========================================
-          6. RENDER MODALE AGGIUNTA (Nuovo Sito)
-          ========================================== */}
+      {/* 
       {isAddModalOpen && (
-        <AddSiteModal
-          existingSites={sites} // Per il controllo dei doppioni sul form
-          onSave={handleCreateSite} // La funzione da eseguire al Submit
-          onClose={() => setIsAddModalOpen(false)} // Per chiudere premendo X o fuori
-        />
+        <AddResourceModal existingResources={resources} onSave={handleCreateResource} onClose={() => setIsAddModalOpen(false)} />
       )}
-
-      {/* ==========================================
-          7. RENDER MODALE DI CONFERMA ELIMINAZIONE
-          ========================================== */}
-      {siteToDelete && (
-        <DeleteConfirmModal
-          site={siteToDelete}
-          onClose={() => setSiteToDelete(null)} // Chiude senza eliminare
-          onConfirm={handleDeleteSite} // Avvia la vera cancellazione passando l'id
-        />
+      {resourceToDelete && (
+        <DeleteConfirmModal resource={resourceToDelete} onClose={() => setResourceToDelete(null)} onConfirm={handleDeleteResource} />
       )}
-
-      {/* ==========================================
-          8. RENDER MODALE MODIFICA (PUT)
-          ========================================== */}
-      {siteToEdit && (
-        <EditSiteModal
-          siteToEdit={siteToEdit} // Passiamo l'oggetto da pre-compilare
-          existingSites={sites} // Per il controllo anti-doppione sul nome
-          onClose={() => setSiteToEdit(null)} // Per chiudere premendo X o Cancel
-          onSave={handleUpdateSite} // La funzione fetch che esegue la PUT
-        />
-      )}
-      
+      {resourceToEdit && (
+        <EditResourceModal resourceToEdit={resourceToEdit} existingResources={resources} onClose={() => setResourceToEdit(null)} onSave={handleUpdateResource} />
+      )} 
+      */}
     </PageLayout>
   );
 }
