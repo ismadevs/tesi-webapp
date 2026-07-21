@@ -5,25 +5,22 @@ import PageLayout from '../../components/PageLayout';
 import TopBar from './TopBar';
 import ResourceCard from './ResourceCard';
 import ResourceDetailsModal from './ResourceDetailsModal';
-//import DeleteConfirmModal from './DeleteConfirmModal'; 
-//import EditResourceModal from './EditResourceModal'; 
-//import AddResourceModal from './AddResourceModal';   
+import AddResourceModal from './AddResourceModal';
+import EditResourceModal from './EditResourceModal';
+import DeleteConfirmModal from './DeleteConfirmModal';
 
 export default function ResourcesPage(){
   // ==========================================
   // 1. GESTIONE DELLO STATO (STATE MANAGEMENT)
   // ==========================================
-  // Array che conterrà le risorse Slices-RI (VM o Baremetal)
   const [resources, setResources] = useState([]);
-  
-  // Stato di caricamento iniziale
   const [isLoading, setIsLoading] = useState(true);
   
   // STATI DELLE MODALI
-  const [selectedResource, setSelectedResource] = useState(null); // Modale Info
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);    // Modale Aggiunta
-  const [resourceToDelete, setResourceToDelete] = useState(null); // Modale Eliminazione
-  const [resourceToEdit, setResourceToEdit] = useState(null);     // Modale Modifica
+  const [selectedResource, setSelectedResource] = useState(null); 
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);    
+  const [resourceToDelete, setResourceToDelete] = useState(null); 
+  const [resourceToEdit, setResourceToEdit] = useState(null);     
 
   // STATO PER LA RICERCA
   const [searchQuery, setSearchQuery] = useState("");
@@ -71,7 +68,6 @@ export default function ResourcesPage(){
 
       const createdResource = await response.json();
 
-      // Aggiorniamo la griglia locale
       setResources((prev) => [...prev, createdResource]);
       setIsAddModalOpen(false);
 
@@ -101,7 +97,6 @@ export default function ResourcesPage(){
         throw new Error("Errore durante l'eliminazione sul server");
       }
 
-      // Rimuoviamo la risorsa dall'array locale
       setResources((prev) => prev.filter(res => res.id !== id));
 
       toast.success('Resource destroyed successfully!', {
@@ -121,6 +116,10 @@ export default function ResourcesPage(){
   // 5. LOGICA DI MODIFICA (CHIAMATA PUT)
   // ==========================================
   const handleUpdateResource = async (id, updatedData) => {
+    console.log("🟢 handleUpdateResource invocata!");
+    console.log("ID Risorsa:", id);
+    console.log("Dati aggiornati:", updatedData);
+
     const toastId = toast.loading('Updating resource metadata...');
 
     try {
@@ -131,12 +130,15 @@ export default function ResourcesPage(){
       });
 
       if (!response.ok) {
-        throw new Error('Errore durante la modifica della risorsa sul server');
+        throw new Error('Errore HTTP: ' + response.status);
       }
 
       const updatedResource = await response.json();
+      console.log("✅ Risorsa aggiornata dal server:", updatedResource);
 
       setResources((prev) => prev.map(res => res.id === id ? updatedResource : res));
+      
+      // La riga fondamentale che chiude la modale
       setResourceToEdit(null);
 
       toast.success('Resource updated successfully!', {
@@ -145,7 +147,7 @@ export default function ResourcesPage(){
       });
 
     } catch (error) {
-      console.error("Errore durante la modifica:", error);
+      console.error("❌ Errore durante la modifica:", error);
       toast.error('Failed to update resource.', { id: toastId });
     }
   };
@@ -153,7 +155,6 @@ export default function ResourcesPage(){
   // ==========================================
   // 6. LOGICA DI FILTRAGGIO
   // ==========================================
-  // Filtriamo cercando nel nome assegnato o nel Site ID (es. be-gent1-bi-vm1)
   const filteredResources = resources.filter(res => 
     res.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (res.siteId && res.siteId.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -191,7 +192,7 @@ export default function ResourcesPage(){
               </p>
               <button
                 onClick={() => setSearchQuery("")}
-                className="text-sm text-primary cursor-pointer"
+                className="text-sm text-blue-600 cursor-pointer"
               >
                 Clear Search
               </button>
@@ -220,17 +221,30 @@ export default function ResourcesPage(){
         />
       )}
 
-      {/* 
       {isAddModalOpen && (
-        <AddResourceModal existingResources={resources} onSave={handleCreateResource} onClose={() => setIsAddModalOpen(false)} />
+        <AddResourceModal
+          existingResources={resources} 
+          onSave={handleCreateResource} 
+          onClose={() => setIsAddModalOpen(false)} 
+        />
       )}
-      {resourceToDelete && (
-        <DeleteConfirmModal resource={resourceToDelete} onClose={() => setResourceToDelete(null)} onConfirm={handleDeleteResource} />
-      )}
+
       {resourceToEdit && (
-        <EditResourceModal resourceToEdit={resourceToEdit} existingResources={resources} onClose={() => setResourceToEdit(null)} onSave={handleUpdateResource} />
-      )} 
-      */}
+        <EditResourceModal
+          resourceToEdit={resourceToEdit} 
+          existingResources={resources} 
+          onClose={() => setResourceToEdit(null)} 
+          onSave={handleUpdateResource} 
+        />
+      )}
+
+      {resourceToDelete && (
+        <DeleteConfirmModal
+          resource={resourceToDelete}
+          onClose={() => setResourceToDelete(null)}
+          onConfirm={handleDeleteResource}
+        />
+      )}
     </PageLayout>
   );
 }

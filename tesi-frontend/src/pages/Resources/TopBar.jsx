@@ -30,7 +30,7 @@ export default function TopBar({ searchQuery, setSearchQuery, onOpenAdd }) {
               value={searchQuery}
               // 3. Ogni volta che l'utente preme un tasto, aggiorniamo lo stato
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-4 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none w-50 transition-all"
+              className="pl-4 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none w-70 transition-all"
             />
           </div>
 
@@ -39,8 +39,8 @@ export default function TopBar({ searchQuery, setSearchQuery, onOpenAdd }) {
             onClick={onOpenAdd}
             className="flex items-center justify-center gap-2 bg-primary text-white px-2 pr-5 pl-3 py-2 rounded-lg font-semibold hover:bg-blue-600 transition-colors cursor-pointer"
           >
-            <Plus size={16} strokeWidth={2.5} />
-            <span>New Site</span>
+            <Plus size={16} strokeWidth={3} />
+            <span>New Resource</span>
           </button>
           
         </div>

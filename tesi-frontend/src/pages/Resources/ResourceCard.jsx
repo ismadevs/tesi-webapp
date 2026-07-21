@@ -78,15 +78,13 @@ export default function ResourceCard({ resource, onOpenInfo, onDeleteResource, o
           ========================================== */}
       <div className="mb-auto flex flex-col gap-3">
         <p className="text-sm font-semibold text-black flex items-center gap-2.5">
-          <LaptopMinimal size={16} strokeWidth={2.5} className="text-black shrink-0" />
-          {resource.diskImage}
-        </p>
-        <p className="text-sm font-semibold text-black flex items-center gap-2.5">
           <Ruler size={16} strokeWidth={2.5} className="text-black shrink-0" />
+          <span>Flavor:</span>
           {resource.flavor}
         </p>
         <p className="text-sm font-semibold text-black flex items-center gap-2.5">
           <Clock size={16} strokeWidth={2.5} className="text-black shrink-0" />
+          <span>Lifetime:</span>
           {resource.duration}
         </p>
       </div>
