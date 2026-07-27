@@ -1,5 +1,5 @@
 import Resource from './Resource.js';
-import Experiment from './Experiment.js'; // (O il file corrispondente che hai per gli esperimenti)
+import Experiment from './Experiment.js';
 
 // ==========================================
 // MOCK DATABASE: RISORSE SLICES-RI
@@ -8,7 +8,7 @@ export let mockResources = [
   new Resource({
     id: 1,
     name: "telecontrol-backend-baremetal",
-    experiment: 101,
+    experiment: 101, // <-- Collegato all'Esperimento 101
     siteId: "be-gent1-bi-baremetal1",
     diskImage: "Ubuntu 24.04.3",
     flavor: "pcgen07",
@@ -22,7 +22,7 @@ export let mockResources = [
   new Resource({
     id: 2,
     name: "react-ui-profiling-vm",
-    experiment: 103,
+    experiment: 103, // <-- Collegato all'Esperimento 103
     siteId: "be-gent1-bi-vm1",
     diskImage: "Debian 12.7",
     flavor: "m1.small",
@@ -36,7 +36,7 @@ export let mockResources = [
   new Resource({
     id: 3,
     name: "aspnet-api-stress-node",
-    experiment: 102,
+    experiment: 102, // <-- Collegato all'Esperimento 102
     siteId: "be-gent1-bi-vm1",
     diskImage: "Ubuntu 24.04.1",
     flavor: "large",
@@ -50,7 +50,7 @@ export let mockResources = [
   new Resource({
     id: 4,
     name: "db-tree-structure-master",
-    experiment: 104,
+    experiment: 104, // <-- Collegato all'Esperimento 104
     siteId: "be-gent1-bi-baremetal1",
     diskImage: "Ubuntu 24.04.3",
     flavor: "pcgen08-gpu6000",
@@ -63,11 +63,11 @@ export let mockResources = [
   }),
   new Resource({
     id: 5,
-    name: "telecontrol-dns-proxy",
-    experiment: 101,
-    siteId: "be-gent1-bi-vm1",
-    diskImage: "Debian 13.1",
-    flavor: "tiny",
+    name: "telecontrol-k8s-cluster", 
+    experiment: 101, // <-- Collegato all'Esperimento 101
+    siteId: "be-gent1-bi-baremetal1", 
+    diskImage: "Ubuntu 24.04.3",
+    flavor: "pc",
     duration: "3h",
     count: 1,
     publicIpv4: false,
@@ -78,7 +78,7 @@ export let mockResources = [
 ];
 
 // ==========================================
-// L'ARRAY DEGLI ESPERIMENTI (Invariato)
+// MOCK DATABASE: ESPERIMENTI
 // ==========================================
 export let mockExperiments = [
   new Experiment({
@@ -88,8 +88,8 @@ export let mockExperiments = [
     status: "completed",
     createdAt: "2026-06-10T09:15:00Z",
     allocatedResources: [
-      { resourceId: 1, type: "full" },
-      { resourceId: 5, type: "namespace", namespaceName: "proxy-net" }
+      { resourceId: 1, resourceName: "telecontrol-backend-baremetal", type: "full" }, // Assegna l'intero server baremetal
+      { resourceId: 5, resourceName: "telecontrol-k8s-cluster", type: "namespace", namespaceName: "proxy-net" } // Assegna solo una partizione del cluster K8s
     ]
   }),
   new Experiment({
@@ -99,7 +99,7 @@ export let mockExperiments = [
     status: "running",
     createdAt: "2026-07-18T14:30:00Z",
     allocatedResources: [
-      { resourceId: 3, type: "full" }
+      { resourceId: 3, resourceName: "aspnet-api-stress-node", type: "full" }
     ]
   }),
   new Experiment({
@@ -109,7 +109,7 @@ export let mockExperiments = [
     status: "stopped",
     createdAt: "2026-07-19T11:10:00Z",
     allocatedResources: [
-      { resourceId: 2, type: "full" }
+      { resourceId: 2, resourceName: "react-ui-profiling-vm", type: "full" }
     ]
   }),
   new Experiment({
@@ -119,7 +119,7 @@ export let mockExperiments = [
     status: "running",
     createdAt: "2026-07-20T08:45:00Z",
     allocatedResources: [
-      { resourceId: 4, type: "full" }
+      { resourceId: 4, resourceName: "db-tree-structure-master", type: "full" }
     ]
   }),
   new Experiment({
@@ -128,6 +128,6 @@ export let mockExperiments = [
     description: "Simulazione di caduta improvvisa del nodo master per verificare i tempi di ripristino automatico e la resilienza dei dati.",
     status: "stopped",
     createdAt: "2026-07-15T16:20:00Z",
-    allocatedResources: []
+    allocatedResources: [] // Un esperimento registrato ma senza ancora risorse assegnate
   })
 ];

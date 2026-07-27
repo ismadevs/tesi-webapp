@@ -12,11 +12,11 @@ export default class Experiment {
   constructor(data) {
 
     // 1. IDENTIFICAZIONE BASE
-    // L'ID numerico univoco generato dal backend (Service).
-    this.id = data.id;
+    // L'ID numerico univoco generato dal backend. Fallback a null per le nuove creazioni.
+    this.id = data.id || null;
 
-    // Il nome dell'esperimento scelto dal ricercatore (es. "IoT Latency Test").
-    this.name = data.name;
+    // Il nome dell'esperimento scelto dal ricercatore (es. "Telecontrol Simulator Load Test").
+    this.name = data.name || '';
 
     // Descrizione dello scopo scientifico dell'esperimento.
     // Essenziale per documentare e permettere la riproducibilità.
@@ -28,20 +28,37 @@ export default class Experiment {
     const validStatuses = ['running', 'stopped', 'completed'];
     this.status = validStatuses.includes(data.status) ? data.status : 'stopped';
 
+    // 3. TIMESTAMP
     // Data di creazione automatica in formato ISO standard (es. "2026-07-20T...")
     this.createdAt = data.createdAt || new Date().toISOString();
 
-    // 3. ALLOCAZIONE DELLE RISORSE (IL "CARRELLO")
+    // 4. ALLOCAZIONE DELLE RISORSE E GRANULARITÀ (CON DENORMALIZZAZIONE)
     // Questo array è la chiave che collega l'Esperimento alle Risorse.
-    // Non salviamo l'intera risorsa, ma solo un "riferimento" strutturato così:
-    // { 
-    //   resourceId: 1, 
-    //   type: "full" | "namespace", 
-    //   namespaceName: "test-ns" (opzionale, solo se type è "namespace")
-    // }
-    this.allocatedResources = Array.isArray(data.allocatedResources) ? data.allocatedResources : [];
+    // Aggiungiamo un controllo per "pulire" e validare ogni risorsa passata,
+    // salvando direttamente anche il NOME della risorsa per evitare query extra dal frontend.
+    if (Array.isArray(data.allocatedResources)) {
+      this.allocatedResources = data.allocatedResources.map(res => {
+        const isNamespace = res.type === 'namespace';
+        
+        return {
+          // L'ID della risorsa a cui ci stiamo collegando
+          resourceId: res.resourceId,
+          
+          // Salviamo direttamente il nome della risorsa (denormalizzazione)
+          resourceName: res.resourceName || 'Unknown Resource',
+          
+          // Forziamo il tipo a "full" se arriva un valore non riconosciuto
+          type: isNamespace ? 'namespace' : 'full',
+          
+          // Salviamo il nome del namespace SOLO se il tipo è corretto, altrimenti null
+          namespaceName: isNamespace ? (res.namespaceName || 'default') : null
+        };
+      });
+    } else {
+      this.allocatedResources = [];
+    }
 
-    // 4. METADATI DI SUPPORTO (CALCOLATI)
+    // 5. METADATI DI SUPPORTO (CALCOLATI)
     // Questo è un campo comodissimo generato in automatico dal backend.
     // Permette al frontend di mostrare subito il numerino nella colonna "Allocated Resources"
     // della tabella, senza dover contare manualmente gli elementi dell'array.

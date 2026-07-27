@@ -1,32 +1,50 @@
 // ==========================================
 // PRESENTATION LAYER (CONTROLLER) - EXPERIMENTS
 // ==========================================
-// Questo file gestisce le richieste HTTP in ingresso (req) e le risposte in uscita (res).
-// Il suo compito è fare da intermediario: riceve la chiamata dal frontend React,
-// delega il lavoro pesante al Service, e formatta la risposta per il client.
-
 import * as experimentService from '../services/experimentService.js';
 
-/**
- * GET /api/experiments
- * Recupera tutti gli esperimenti per popolare la tabella principale.
- */
 export const getExperiments = (req, res) => {
   try {
-    // 1. Deleghiamo il recupero dei dati al Service
     const experiments = experimentService.getAllExperiments();
-
-    // 2. Rispondiamo al frontend con uno status 200 (OK)
-    // e inviamo l'array di esperimenti in formato JSON.
     res.status(200).json(experiments);
-
   } catch (error) {
-    // Se qualcosa va storto (es. nel mondo reale il database è giù),
-    // catturiamo l'errore per non far crashare il server e avvisiamo il frontend
-    // con uno status 500 (Internal Server Error).
     console.error("Errore durante il recupero degli esperimenti:", error);
-    res.status(500).json({ message: "Impossibile recuperare gli esperimenti in questo momento." });
+    res.status(500).json({ message: "Impossibile recuperare gli esperimenti." });
   }
 };
 
-// Anche qui, per ora ci fermiamo alla sola operazione di GET (lettura).
+export const createExperiment = (req, res) => {
+  try {
+    const newExp = experimentService.createExperiment(req.body);
+    res.status(201).json(newExp);
+  } catch (error) {
+    console.error("Errore durante la creazione dell'esperimento:", error);
+    res.status(500).json({ message: "Impossibile creare l'esperimento." });
+  }
+};
+
+export const updateExperiment = (req, res) => {
+  try {
+    const updatedExp = experimentService.updateExperiment(req.params.id, req.body);
+    if (!updatedExp) {
+      return res.status(404).json({ message: "Esperimento non trovato." });
+    }
+    res.status(200).json(updatedExp);
+  } catch (error) {
+    console.error("Errore durante l'aggiornamento dell'esperimento:", error);
+    res.status(500).json({ message: "Impossibile aggiornare l'esperimento." });
+  }
+};
+
+export const deleteExperiment = (req, res) => {
+  try {
+    const success = experimentService.deleteExperiment(req.params.id);
+    if (!success) {
+      return res.status(404).json({ message: "Esperimento non trovato." });
+    }
+    res.status(204).send(); // 204 = No Content (eliminazione avvenuta con successo)
+  } catch (error) {
+    console.error("Errore durante l'eliminazione dell'esperimento:", error);
+    res.status(500).json({ message: "Impossibile eliminare l'esperimento." });
+  }
+};

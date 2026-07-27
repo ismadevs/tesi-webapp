@@ -132,7 +132,6 @@ export default function ExperimentsTable({ experiments, onRowClick }) {
                   <td className="py-4 px-5 border-r border-gray-100 last:border-r-0 align-middle">
                     <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-md text-sm font-semibold text-black border border-gray-200">
                       <span>{exp.resourceCount}</span>
-                      <span>{exp.resourceCount === 1 ? "SITE" : "SITES"}</span>
                     </span>
                   </td>
 

@@ -7,7 +7,8 @@ import { Plus } from 'lucide-react';
 
 export default function TopBar({ 
   title = "Experiments", 
-  description = "Manage and monitor your scientific execution environments"
+  description = "Manage and monitor your scientific execution environments",
+  onAddClick
 }) {
   return (
     <div className="mb-12">
@@ -30,7 +31,7 @@ export default function TopBar({
           
           {/* Pulsante Add (Ora è sempre visibile) */}
           <button
-            onClick={() => console.log("Apri creazione esperimento")}
+            onClick={onAddClick}
             className="flex items-center justify-center gap-2 bg-primary text-white px-2 pr-5 pl-3 py-2 rounded-lg font-semibold hover:bg-blue-600 transition-colors cursor-pointer"
           >
             <Plus size={16} strokeWidth={2.5} />
