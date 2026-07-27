@@ -89,7 +89,7 @@ export let mockExperiments = [
     createdAt: "2026-06-10T09:15:00Z",
     allocatedResources: [
       { resourceId: 1, resourceName: "telecontrol-backend-baremetal", type: "full" }, // Assegna l'intero server baremetal
-      { resourceId: 5, resourceName: "telecontrol-k8s-cluster", type: "namespace", namespaceName: "proxy-net" } // Assegna solo una partizione del cluster K8s
+      { resourceId: 5, resourceName: "telecontrol-k8s-cluster", type: "namespace" } // Assegna solo una partizione del cluster K8s
     ]
   }),
   new Experiment({

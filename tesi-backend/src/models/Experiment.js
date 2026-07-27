@@ -49,9 +49,6 @@ export default class Experiment {
           
           // Forziamo il tipo a "full" se arriva un valore non riconosciuto
           type: isNamespace ? 'namespace' : 'full',
-          
-          // Salviamo il nome del namespace SOLO se il tipo è corretto, altrimenti null
-          namespaceName: isNamespace ? (res.namespaceName || 'default') : null
         };
       });
     } else {
