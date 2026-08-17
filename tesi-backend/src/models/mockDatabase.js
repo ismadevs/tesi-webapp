@@ -1,133 +1,85 @@
-import Resource from './Resource.js';
-import Experiment from './Experiment.js';
+import Experiment, { EXPERIMENT_STATUS } from './Experiment.js';
 
 // ==========================================
-// MOCK DATABASE: RISORSE SLICES-RI
+// MOCK DATABASE
 // ==========================================
-export let mockResources = [
-  new Resource({
-    id: 1,
-    name: "telecontrol-backend-baremetal",
-    experiment: 101, // <-- Collegato all'Esperimento 101
-    siteId: "be-gent1-bi-baremetal1",
-    diskImage: "Ubuntu 24.04.3",
-    flavor: "pcgen07",
-    duration: "1d",
-    count: 1,
-    publicIpv4: true,
-    sshKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEhKNN...",
-    status: "up",
-    createdAt: "2026-07-20T08:00:00Z"
-  }),
-  new Resource({
-    id: 2,
-    name: "react-ui-profiling-vm",
-    experiment: 103, // <-- Collegato all'Esperimento 103
-    siteId: "be-gent1-bi-vm1",
-    diskImage: "Debian 12.7",
-    flavor: "m1.small",
-    duration: "3h",
-    count: 1,
-    publicIpv4: false,
-    sshKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEhKNN...",
-    status: "up",
-    createdAt: "2026-07-21T09:15:00Z"
-  }),
-  new Resource({
-    id: 3,
-    name: "aspnet-api-stress-node",
-    experiment: 102, // <-- Collegato all'Esperimento 102
-    siteId: "be-gent1-bi-vm1",
-    diskImage: "Ubuntu 24.04.1",
-    flavor: "large",
-    duration: "12h",
-    count: 1,
-    publicIpv4: true,
-    sshKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEhKNN...",
-    status: "starting",
-    createdAt: "2026-07-21T17:30:00Z"
-  }),
-  new Resource({
-    id: 4,
-    name: "db-tree-structure-master",
-    experiment: 104, // <-- Collegato all'Esperimento 104
-    siteId: "be-gent1-bi-baremetal1",
-    diskImage: "Ubuntu 24.04.3",
-    flavor: "pcgen08-gpu6000",
-    duration: "2d",
-    count: 1,
-    publicIpv4: false,
-    sshKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEhKNN...",
-    status: "stopped",
-    createdAt: "2026-07-18T10:00:00Z"
-  }),
-  new Resource({
-    id: 5,
-    name: "telecontrol-k8s-cluster", 
-    experiment: 101, // <-- Collegato all'Esperimento 101
-    siteId: "be-gent1-bi-baremetal1", 
-    diskImage: "Ubuntu 24.04.3",
-    flavor: "pc",
-    duration: "3h",
-    count: 1,
-    publicIpv4: false,
-    sshKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEhKNN...",
-    status: "up",
-    createdAt: "2026-07-21T14:20:00Z"
-  })
-];
+// Simula la persistenza in attesa di CouchDB. Gli array sono in memoria:
+// ogni riavvio del server ripristina questi dati iniziali.
+//
+// Sono deliberatamente pochi e scelti per coprire gli stati del ciclo di vita,
+// cosi' l'interfaccia puo' essere verificata su tutti i casi senza dover
+// materializzare nulla su SLICES.
 
 // ==========================================
-// MOCK DATABASE: ESPERIMENTI
+// ESPERIMENTI
 // ==========================================
 export let mockExperiments = [
+  // Bozza: esiste solo nella piattaforma, tutti i campi remote sono nulli.
+  // E' lo stato in cui nasce ogni esperimento creato dall'utente.
   new Experiment({
-    id: 101,
-    name: "Telecontrol Simulator Load Test",
-    description: "Stress test massivo sui nodi ad albero del simulatore di telecontrollo per valutare la latenza di risposta del backend.",
-    status: "completed",
-    createdAt: "2026-06-10T09:15:00Z",
-    allocatedResources: [
-      { resourceId: 1, resourceName: "telecontrol-backend-baremetal", type: "full" }, // Assegna l'intero server baremetal
-      { resourceId: 5, resourceName: "telecontrol-k8s-cluster", type: "namespace" } // Assegna solo una partizione del cluster K8s
-    ]
+    id: 'exp-0001',
+    spec: {
+      name: 'latency-benchmark',
+      description: 'Misura della latenza di risposta tra nodi su rete privata.',
+      duration: '8h',
+    },
+    status: EXPERIMENT_STATUS.DRAFT,
+    createdAt: '2026-08-01T09:15:00Z',
   }),
+
+  // Bozza senza descrizione: verifica che il campo facoltativo sia gestito.
   new Experiment({
-    id: 102,
-    name: "ASP.NET Core API Benchmarking",
-    description: "Valutazione dei tempi di risposta delle API REST in C# sotto un carico simulato di 10.000 richieste concorrenti al secondo.",
-    status: "running",
-    createdAt: "2026-07-18T14:30:00Z",
-    allocatedResources: [
-      { resourceId: 3, resourceName: "aspnet-api-stress-node", type: "full" }
-    ]
+    id: 'exp-0002',
+    spec: {
+      name: 'k8s-scaling-test',
+      description: '',
+      duration: '24h',
+    },
+    status: EXPERIMENT_STATUS.DRAFT,
+    createdAt: '2026-08-02T11:40:00Z',
   }),
+
+  // Materializzato: i campi remote sono popolati con dati nel formato reale
+  // restituito da SLICES, incluso l'identificatore lungo.
   new Experiment({
-    id: 103,
-    name: "React Frontend Render Profiling",
-    description: "Analisi delle performance di rendering dei componenti UI della dashboard con flusso dati in tempo reale via WebSocket.",
-    status: "stopped",
-    createdAt: "2026-07-19T11:10:00Z",
-    allocatedResources: [
-      { resourceId: 2, resourceName: "react-ui-profiling-vm", type: "full" }
-    ]
+    id: 'exp-0003',
+    spec: {
+      name: 'sim-exp-2',
+      description: 'Simulazione walking skeleton con due macchine virtuali.',
+      duration: '2h',
+    },
+    status: EXPERIMENT_STATUS.DEPLOYED,
+    remote: {
+      slicesExperimentId: 'exp_expauth.ilabt.imec.be_01kz1p6j9ker1bd1jr5epb5m41',
+      projectName: 'tesi-unibo',
+      createdAt: '2026-08-02T16:51:30Z',
+      expiresAt: '2026-08-02T18:51:00Z',
+      deleted: false,
+    },
+    createdAt: '2026-08-02T16:45:00Z',
   }),
+
+  // Fallito: mostra come il motivo dell'errore raggiunge l'interfaccia.
+  // Il messaggio riproduce quello realmente restituito dalla CLI quando si
+  // tenta di riusare un nome gia' occupato.
   new Experiment({
-    id: 104,
-    name: "Tree-Structure DB Pathing Optimization",
-    description: "Verifica dell'integrità logica e dei tempi di query sui percorsi ad albero gerarchici nel database principale.",
-    status: "running",
-    createdAt: "2026-07-20T08:45:00Z",
-    allocatedResources: [
-      { resourceId: 4, resourceName: "db-tree-structure-master", type: "full" }
-    ]
+    id: 'exp-0004',
+    spec: {
+      name: 'sim-exp',
+      description: 'Tentativo di materializzazione non riuscito.',
+      duration: '2h',
+    },
+    status: EXPERIMENT_STATUS.FAILED,
+    error: 'Bad Request: An active experiment with this name already exists.',
+    createdAt: '2026-08-02T16:39:00Z',
   }),
-  new Experiment({
-    id: 105,
-    name: "Failover Protocol Rehearsal",
-    description: "Simulazione di caduta improvvisa del nodo master per verificare i tempi di ripristino automatico e la resilienza dei dati.",
-    status: "stopped",
-    createdAt: "2026-07-15T16:20:00Z",
-    allocatedResources: [] // Un esperimento registrato ma senza ancora risorse assegnate
-  })
 ];
+
+// ==========================================
+// RISORSE
+// ==========================================
+// Volutamente vuoto: il modello delle risorse verra' ricostruito da zero.
+// In SLICES una risorsa non esiste al di fuori di un esperimento, quindi
+// fara' riferimento all'esperimento contenitore tramite experimentId,
+// e non viceversa come nella versione precedente.
+export let mockResources = [];

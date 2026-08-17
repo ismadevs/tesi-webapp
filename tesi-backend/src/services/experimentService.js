@@ -1,60 +1,295 @@
 // ==========================================
 // BUSINESS LOGIC LAYER (SERVICE) - EXPERIMENTS
 // ==========================================
-import { mockExperiments } from '../models/mockDatabase.js';
-import Experiment from '../models/Experiment.js';
+// Contiene le regole del dominio: validazione, unicita' dei nomi, vincoli
+// sulle transizioni di stato. Non conosce HTTP e non formula risposte:
+// in caso di violazione lancia un errore tipizzato che il controller traduce.
+
+import { mockExperiments, mockResources } from '../models/mockDatabase.js';
+import Experiment, { EXPERIMENT_STATUS } from '../models/Experiment.js';
+import { ValidationError, NotFoundError, ConflictError } from '../utils/errors.js';
+
+// ==========================================
+// VINCOLI DERIVATI DALLA PIATTAFORMA
+// ==========================================
+
+// Il nome finisce dentro identificatori e viene passato come argomento alla
+// CLI: caratteri speciali e spazi creano problemi di quoting. Ammettiamo
+// quindi solo minuscole, cifre e trattini.
+const NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const NAME_MAX_LENGTH = 60;
+
+// La durata segue il formato accettato da SLICES: un numero seguito
+// dall'unita' (minuti, ore, giorni, settimane). Esempi validi: 30m, 2h, 1d.
+const DURATION_PATTERN = /^(\d+)([mhdw])$/;
+
+// Le risorse SLICES hanno un tetto di 2160 ore, pari a 90 giorni.
+const MAX_DURATION_HOURS = 2160;
+
+const UNIT_TO_HOURS = { m: 1 / 60, h: 1, d: 24, w: 168 };
+
+// ==========================================
+// VALIDAZIONE
+// ==========================================
+
+const validateName = (name, currentId = null) => {
+  if (!name) {
+    throw new ValidationError('Il nome dell\'esperimento è obbligatorio.', 'name');
+  }
+
+  if (name.length > NAME_MAX_LENGTH) {
+    throw new ValidationError(
+      `Il nome non può superare ${NAME_MAX_LENGTH} caratteri.`, 'name'
+    );
+  }
+
+  if (!NAME_PATTERN.test(name)) {
+    throw new ValidationError(
+      'Il nome può contenere solo lettere minuscole, cifre e trattini ' +
+      '(esempio: latency-benchmark).',
+      'name'
+    );
+  }
+
+  // Su SLICES il nome resta occupato anche dopo l'eliminazione: verificato
+  // sperimentalmente, la ricreazione con lo stesso nome viene rifiutata con
+  // "An active experiment with this name already exists". Controllarlo qui
+  // evita che l'utente scopra il conflitto solo a materializzazione fallita.
+  const duplicate = mockExperiments.find(
+    (exp) => exp.spec.name === name && exp.id !== currentId
+  );
+
+  if (duplicate) {
+    throw new ConflictError(
+      `Esiste già un esperimento chiamato "${name}". ` +
+      'Su SLICES il nome resta occupato anche dopo l\'eliminazione.'
+    );
+  }
+};
+
+const validateDuration = (duration) => {
+  if (!duration) {
+    throw new ValidationError('La durata è obbligatoria.', 'duration');
+  }
+
+  const match = DURATION_PATTERN.exec(duration);
+  if (!match) {
+    throw new ValidationError(
+      'Formato durata non valido. Usa un numero seguito da m, h, d o w ' +
+      '(esempio: 2h, 1d).',
+      'duration'
+    );
+  }
+
+  const [, amount, unit] = match;
+  const hours = Number(amount) * UNIT_TO_HOURS[unit];
+
+  if (hours <= 0) {
+    throw new ValidationError('La durata deve essere maggiore di zero.', 'duration');
+  }
+
+  if (hours > MAX_DURATION_HOURS) {
+    throw new ValidationError(
+      `La durata non può superare ${MAX_DURATION_HOURS} ore (90 giorni), ` +
+      'che è il limite imposto da SLICES-RI.',
+      'duration'
+    );
+  }
+};
+
+// ==========================================
+// ARRICCHIMENTO PER IL LIVELLO DI PRESENTAZIONE
+// ==========================================
+// Il conteggio delle risorse non e' un campo memorizzato ma un dato derivato:
+// in SLICES la risorsa appartiene all'esperimento, quindi si contano le risorse
+// che vi fanno riferimento. Calcolarlo qui evita che il frontend debba
+// interrogare due endpoint per riempire una colonna della tabella.
+const withResourceCount = (experiment) => ({
+  ...experiment,
+  isDeployed: experiment.remote.slicesExperimentId !== null,
+  resourceCount: mockResources.filter((r) => r.experimentId === experiment.id).length,
+});
+
+// Generazione dell'identificatore locale. Con CouchDB diventera' il campo _id;
+// il formato con prefisso rende leggibile il tipo di documento.
+const generateId = () => {
+  const suffix = Math.random().toString(36).slice(2, 8);
+  return `exp-${Date.now().toString(36)}-${suffix}`;
+};
+
+// ==========================================
+// OPERAZIONI
+// ==========================================
 
 /**
- * Recupera l'elenco completo di tutti gli esperimenti.
+ * Elenco completo degli esperimenti, dal piu' recente al piu' vecchio.
+ * Include sia le bozze sia quelli materializzati: e' la differenza rispetto
+ * a `slices experiment list`, che conosce solo i secondi.
  */
 export const getAllExperiments = () => {
-  return mockExperiments;
+  return [...mockExperiments]
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .map(withResourceCount);
 };
 
 /**
- * Crea un nuovo esperimento e lo aggiunge al database.
+ * Singolo esperimento per identificatore locale.
  */
-export const createExperiment = (data) => {
-  // Trova l'ID più alto attualmente esistente (o parte da 100 se vuoto)
-  const maxId = mockExperiments.reduce((max, exp) => Math.max(max, exp.id), 100);
-  
-  // Passa i dati al costruttore per formattarli e validare i campi
-  const newExperiment = new Experiment({
-    ...data,
-    id: maxId + 1,
-    createdAt: new Date().toISOString()
-  });
-  
-  mockExperiments.push(newExperiment);
-  return newExperiment;
+export const getExperimentById = (id) => {
+  const experiment = mockExperiments.find((exp) => exp.id === id);
+  if (!experiment) {
+    throw new NotFoundError(`Esperimento "${id}" non trovato.`);
+  }
+  return withResourceCount(experiment);
 };
 
 /**
- * Aggiorna un esperimento esistente tramite ID.
+ * Crea un esperimento in stato DRAFT.
+ * Nessuna interazione con SLICES: il documento esiste solo nella piattaforma
+ * finche' l'utente non richiede esplicitamente la materializzazione.
  */
-export const updateExperiment = (id, data) => {
-  const index = mockExperiments.findIndex(exp => exp.id === Number(id));
-  if (index === -1) return null;
+export const createExperiment = (data = {}) => {
+  const spec = data.spec || data;
 
-  // Uniamo i dati vecchi con quelli nuovi, forzando il mantenimento dell'ID originale
-  // Ripassiamo tutto nel costruttore per ricalcolare il resourceCount
-  const updatedExperiment = new Experiment({
-    ...mockExperiments[index],
-    ...data,
-    id: Number(id)
+  const name = (spec.name ?? '').trim();
+  const description = (spec.description ?? '').trim();
+  const duration = (spec.duration ?? '2h').trim();
+
+  validateName(name);
+  validateDuration(duration);
+
+  const experiment = new Experiment({
+    id: generateId(),
+    spec: { name, description, duration },
+    status: EXPERIMENT_STATUS.DRAFT,
   });
 
-  mockExperiments[index] = updatedExperiment;
-  return updatedExperiment;
+  mockExperiments.push(experiment);
+  return withResourceCount(experiment);
 };
 
 /**
- * Elimina un esperimento tramite ID.
+ * Aggiorna la specifica di un esperimento.
+ * Consentito solo in stato DRAFT: una specifica gia' applicata non puo' essere
+ * modificata, perche' il cambiamento non avrebbe alcun effetto sulle risorse
+ * gia' allocate su SLICES.
+ */
+export const updateExperiment = (id, data = {}) => {
+  const index = mockExperiments.findIndex((exp) => exp.id === id);
+  if (index === -1) {
+    throw new NotFoundError(`Esperimento "${id}" non trovato.`);
+  }
+
+  const current = mockExperiments[index];
+
+  if (current.status !== EXPERIMENT_STATUS.DRAFT) {
+    throw new ConflictError(
+      'Solo gli esperimenti in bozza possono essere modificati. ' +
+      'Questo esperimento è già stato materializzato su SLICES-RI.'
+    );
+  }
+
+  const spec = data.spec || data;
+
+  // Aggiornamento parziale: i campi non inviati mantengono il valore corrente.
+  const name = spec.name !== undefined ? spec.name.trim() : current.spec.name;
+  const description = spec.description !== undefined
+    ? spec.description.trim()
+    : current.spec.description;
+  const duration = spec.duration !== undefined
+    ? spec.duration.trim()
+    : current.spec.duration;
+
+  // L'identificatore corrente viene escluso dal controllo di unicita',
+  // altrimenti un salvataggio senza modifiche al nome verrebbe rifiutato.
+  validateName(name, id);
+  validateDuration(duration);
+
+  const updated = new Experiment({
+    ...current,
+    spec: { name, description, duration },
+    updatedAt: new Date().toISOString(),
+  });
+
+  mockExperiments[index] = updated;
+  return withResourceCount(updated);
+};
+
+/**
+ * Elimina la specifica di un esperimento.
+ *
+ * ATTENZIONE ALLA SEMANTICA: qui si elimina il documento dalla piattaforma,
+ * non si distrugge nulla su SLICES. Sono due operazioni distinte, e per questo
+ * l'eliminazione e' ammessa solo sulle bozze: cancellare il documento di un
+ * esperimento materializzato lascerebbe le macchine allocate senza piu' alcuna
+ * traccia nella piattaforma, che e' la situazione peggiore possibile.
  */
 export const deleteExperiment = (id) => {
-  const index = mockExperiments.findIndex(exp => exp.id === Number(id));
-  if (index === -1) return false;
-  
+  const index = mockExperiments.findIndex((exp) => exp.id === id);
+  if (index === -1) {
+    throw new NotFoundError(`Esperimento "${id}" non trovato.`);
+  }
+
+  const current = mockExperiments[index];
+
+  if (current.status !== EXPERIMENT_STATUS.DRAFT) {
+    throw new ConflictError(
+      'Solo gli esperimenti in bozza possono essere eliminati. ' +
+      'Le risorse già allocate su SLICES-RI vengono liberate alla scadenza.'
+    );
+  }
+
+  const attachedResources = mockResources.filter((r) => r.experimentId === id);
+  if (attachedResources.length > 0) {
+    throw new ConflictError(
+      `Questo esperimento contiene ${attachedResources.length} risorse. ` +
+      'Rimuovile prima di eliminarlo.'
+    );
+  }
+
   mockExperiments.splice(index, 1);
   return true;
+};
+
+/**
+ * Richiede la materializzazione su SLICES-RI.
+ *
+ * Non contatta l'infrastruttura: si limita a portare il documento in stato
+ * DEPLOY_REQUESTED. Sara' il controller di orchestrazione a raccogliere la
+ * richiesta e a invocare la CLI. La separazione e' voluta: l'intenzione e'
+ * persistente e sopravvive alla chiusura del browser o all'arresto del
+ * controller, invece di essere una chiamata effimera.
+ */
+export const requestDeploy = (id) => {
+  const index = mockExperiments.findIndex((exp) => exp.id === id);
+  if (index === -1) {
+    throw new NotFoundError(`Esperimento "${id}" non trovato.`);
+  }
+
+  const current = mockExperiments[index];
+
+  // Controllo di idempotenza: se ha gia' un identificatore remoto,
+  // l'esperimento e' gia' stato materializzato.
+  if (current.remote.slicesExperimentId !== null) {
+    throw new ConflictError('Questo esperimento è già stato materializzato su SLICES-RI.');
+  }
+
+  // Da FAILED si puo' ritentare, da DRAFT si parte: gli altri stati indicano
+  // un deploy gia' in corso.
+  const deployable = [EXPERIMENT_STATUS.DRAFT, EXPERIMENT_STATUS.FAILED];
+  if (!deployable.includes(current.status)) {
+    throw new ConflictError(
+      `Un deploy è già in corso (stato attuale: ${current.status}).`
+    );
+  }
+
+  const updated = new Experiment({
+    ...current,
+    status: EXPERIMENT_STATUS.DEPLOY_REQUESTED,
+    error: null,
+    updatedAt: new Date().toISOString(),
+  });
+
+  mockExperiments[index] = updated;
+  return withResourceCount(updated);
 };
