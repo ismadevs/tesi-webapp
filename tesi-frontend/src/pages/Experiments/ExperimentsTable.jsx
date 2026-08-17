@@ -1,6 +1,6 @@
-import { Box, Radio, Database, Clock, Timer } from 'lucide-react';
+import { Box, Radio, Database, Clock, Timer, Calendar } from 'lucide-react';
 import StatusBadge from './StatusBadge';
-import { formatTimeLeft, isExpiringSoon } from './experimentStatus';
+import { formatDateTime, isExpiringSoon } from './experimentStatus';
 
 // ==========================================
 // EXPERIMENTS TABLE (Presentational Component)
@@ -20,37 +20,37 @@ export default function ExperimentsTable({ experiments, onRowClick }) {
     { label: 'Status', Icon: Radio },
     { label: 'Resources', Icon: Database },
     { label: 'Duration', Icon: Clock },
-    { label: 'Expires', Icon: Timer },
+    { label: 'Creation Date', Icon: Calendar },
+    { label: 'Expiry Date', Icon: Timer },
   ];
 
   // La scadenza esiste solo dopo la materializzazione: prima del deploy
   // l'esperimento non ha alcuna esistenza su SLICES, quindi nessuna data.
-  const renderExpiry = (experiment) => {
-    const expiresAt = experiment.remote?.expiresAt;
+ const renderExpiry = (experiment) => {
+  const expiresAt = experiment.remote?.expiresAt;
 
-    if (!expiresAt) {
-      return <span className="text-gray-300">—</span>;
-    }
+  if (!expiresAt) {
+    return <span className="text-gray-300">—</span>;
+  }
 
-    const timeLeft = formatTimeLeft(expiresAt);
-    const urgent = isExpiringSoon(expiresAt);
-
-    return (
-      <span className={urgent ? 'text-rose-600 font-bold' : 'text-black'}>
-        {timeLeft}
-      </span>
-    );
-  };
+  return (
+    <span className={isExpiringSoon(expiresAt) ? 'text-rose-600 font-bold' : 'text-black'}>
+      {formatDateTime(expiresAt)}
+    </span>
+  );
+};
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
-
           <thead>
             <tr className="bg-gray-50/80 border-b border-gray-200">
               {columns.map(({ label, Icon }) => (
-                <th key={label} className="py-3 px-5 border-r border-gray-200 last:border-r-0">
+                <th
+                  key={label}
+                  className="py-3 px-5 border-r border-gray-200 last:border-r-0"
+                >
                   <div className="flex items-center gap-2 text-sm font-semibold text-black">
                     <Icon size={16} />
                     {label}
@@ -63,7 +63,10 @@ export default function ExperimentsTable({ experiments, onRowClick }) {
           <tbody>
             {experiments.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="py-16 text-center text-gray-400">
+                <td
+                  colSpan={columns.length}
+                  className="py-16 text-center text-gray-400"
+                >
                   No experiments yet. Create your first one to get started.
                 </td>
               </tr>
@@ -96,6 +99,14 @@ export default function ExperimentsTable({ experiments, onRowClick }) {
 
                   <td className="py-4 px-5 border-r border-gray-100 align-middle text-sm font-semibold text-black">
                     {exp.spec.duration}
+                  </td>
+
+                  <td className="py-4 px-5 border-r border-gray-100 align-middle text-sm font-semibold text-black">
+                    {exp.remote?.createdAt ? (
+                      formatDateTime(exp.remote.createdAt)
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
                   </td>
 
                   <td className="py-4 px-5 align-middle text-sm font-semibold">

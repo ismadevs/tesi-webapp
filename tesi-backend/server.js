@@ -22,6 +22,8 @@ import resourceRoutes from './src/routes/resourceRoutes.js';
 // IMPORTA LE ROTTE DEGLI ESPERIMENTI
 import experimentRoutes from './src/routes/experimentRoutes.js';
 
+import { startOrchestrator } from './src/services/orchestrator.js';
+
 // Carica tutte le variabili presenti nel file .env
 // all'interno dell'oggetto process.env.
 dotenv.config();
@@ -138,4 +140,5 @@ app.listen(PORT, () => {
     // Messaggio visualizzato nel terminale
     // quando il server è pronto a ricevere richieste.
     console.log(`🚀 Server in esecuzione sulla porta ${PORT}`);
+    startOrchestrator();
 });
