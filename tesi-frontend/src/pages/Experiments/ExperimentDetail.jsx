@@ -1,205 +1,195 @@
 import { useState } from 'react';
-import { ArrowLeft, Calendar, Database, Pencil, Trash2, Box, Info } from 'lucide-react';
+import { ArrowLeft, Database, Pencil, Trash2, Box, Clock, FileText, AlertCircle } from 'lucide-react';
 
-import ResourceDetailsModal from '../Resources/ResourceDetailsModal';
+import StatusBadge from './StatusBadge';
 import DeleteExperimentModal from './DeleteExperimentModal';
+import { STATUS, isEditable, formatTimeLeft, isExpiringSoon, formatDateTime } from './experimentStatus';
 
 // ==========================================
 // EXPERIMENT DETAIL (Presentational Component)
 // ==========================================
+// Corrisponde a `slices experiment show`, ma con una differenza sostanziale:
+// mostra anche gli esperimenti che su SLICES non esistono ancora.
+//
+// Il contrasto fra le due viste, prima e dopo la materializzazione, e' cio' che
+// rende visibile la separazione fra specifica e infrastruttura.
 
-export default function ExperimentDetail({ experiment, onBack, onDelete }) {
-  const [selectedResource, setSelectedResource] = useState(null);
+export default function ExperimentDetail({ experiment, onBack, onEdit, onDelete }) {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-  const formatDate = (dateString) => {
-    const options = { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' };
-    return new Date(dateString).toLocaleDateString('en-US', options);
-  };
-
-  const renderStatusBadge = (status) => {
-    switch (status) {
-      case 'running':
-        return (
-          <span className="flex items-center gap-2 text-sm font-semibold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-md border border-emerald-100 w-fit">
-            <span className="w-2 h-2 rounded-md bg-emerald-500 animate-pulse"></span>
-            Running
-          </span>
-        );
-      case 'completed':
-        return (
-          <span className="flex items-center gap-2 text-sm font-semibold text-blue-600 bg-blue-50 px-3 py-1 rounded-md border border-blue-100 w-fit">
-            <span className="w-2 h-2 rounded-md bg-blue-500"></span>
-            Completed
-          </span>
-        );
-      case 'stopped':
-      default:
-        return (
-          <span className="flex items-center gap-2 text-sm font-semibold text-rose-600 bg-rose-50 px-3 py-1 rounded-md border border-rose-100 w-fit">
-            <span className="w-2 h-2 rounded-md bg-rose-500"></span>
-            Stopped
-          </span>
-        );
-    }
-  };
+  const editable = isEditable(experiment);
+  const { slicesExperimentId, projectName, createdAt, expiresAt } = experiment.remote;
 
   // ==========================================
-  // HELPER: FETCH INFO RISORSA (WORKAROUND FRONTEND)
+  // BANNER DI STATO
   // ==========================================
-  const handleOpenResourceInfo = async (resourceId) => {
-    try {
-      const response = await fetch('http://localhost:3000/api/resources');
-      
-      if (!response.ok) {
-        throw new Error('Errore durante la comunicazione con il server');
-      }
-      
-      const allResources = await response.json();
-      const foundResource = allResources.find(res => res.id === resourceId);
-      
-      if (foundResource) {
-        setSelectedResource(foundResource); 
-      } else {
-        console.error("Risorsa non trovata nel database.");
-      }
-      
-    } catch (error) {
-      console.error("Impossibile recuperare i dettagli della risorsa:", error);
+  // Le azioni di scrittura scompaiono sui documenti materializzati invece di
+  // restare disabilitate, perche' non torneranno mai disponibili. Il banner si
+  // fa carico di spiegare l'assenza: una frase al posto giusto informa meglio
+  // di un tooltip da cercare passandoci sopra.
+  const renderBanner = () => {
+    if (experiment.status === STATUS.FAILED) {
+      return (
+        <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-100 rounded-2xl">
+          <AlertCircle size={20} className="text-rose-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-bold text-rose-700">Deployment failed</p>
+            <p className="text-sm text-rose-600 mt-1">
+              {experiment.error || 'No further details available.'}
+            </p>
+          </div>
+        </div>
+      );
     }
+
+    if (editable) {
+      return (
+        <div className="p-4 bg-gray-50 border border-gray-200 border-dashed rounded-2xl">
+          <p className="text-sm text-gray-600">
+            This experiment exists only in the platform. Nothing has been allocated
+            on SLICES-RI yet.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
+        <p className="text-sm text-emerald-700">
+          This experiment has been created on SLICES-RI. The specification can no
+          longer be modified.
+        </p>
+      </div>
+    );
   };
+
+  // Riga di metadato. I dati remoti compaiono solo quando esistono davvero:
+  // prima del deploy non hanno alcun valore da mostrare.
+  const Field = ({ label, value, mono = false, urgent = false }) => (
+    <div>
+      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">
+        {label}
+      </p>
+      <p className={`text-sm font-semibold break-all ${mono ? 'font-mono text-xs' : ''} ${urgent ? 'text-rose-600' : 'text-gray-900'}`}>
+        {value}
+      </p>
+    </div>
+  );
 
   return (
-    <div className="flex flex-col h-full animate-in fade-in duration-300 relative">
-      
-      {/* ==========================================
-          TOP ACTIONS
-          ========================================== */}
+    <div className="flex flex-col h-full animate-in fade-in duration-300">
+
+      {/* NAVIGAZIONE */}
       <div className="mb-8">
-        <button 
+        <button
           onClick={onBack}
-          className="flex items-center gap-2 text-md font-semibold text-gray-500 hover:text-black transition-colors py-2 pr-4 w-fit group cursor-pointer"
+          className="flex items-center gap-2 text-md font-semibold text-gray-500 hover:text-black transition-colors py-2 pr-4 w-fit cursor-pointer"
         >
           <ArrowLeft size={18} strokeWidth={3} />
           Back to Experiments
         </button>
       </div>
 
-      {/* ==========================================
-          HEADER SECTION
-          ========================================== */}
-      <div className="flex flex-col gap-4 mb-12">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <h1 className="text-4xl font-bold text-gray-900 tracking-tight">
-            {experiment.name}
-          </h1>
-          {renderStatusBadge(experiment.status)}
-        </div>
-        
-        <div className="flex items-center gap-2 text-sm font-semibold text-gray-400">
-          <Calendar size={15} />
-          <span>Created on {formatDate(experiment.createdAt)}</span>
-        </div>
+      {/* INTESTAZIONE */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <h1 className="text-4xl font-bold text-gray-900 tracking-tight">
+          {experiment.spec.name}
+        </h1>
+        <StatusBadge status={experiment.status} size="lg" />
       </div>
 
-      {/* ==========================================
-          DESCRIPTION SECTION
-          ========================================== */}
-      <div className="mb-16">
-        <p className="text-lg text-black leading-relaxed font-medium">
-          {experiment.description || "No description provided."}
-        </p>
-      </div>
+      <div className="mb-10">{renderBanner()}</div>
 
-      {/* ==========================================
-          RESOURCES SECTION (CARDS GRID)
-          ========================================== */}
-      <div className="flex-1 mb-12">
-        <h2 className="text-sm font-bold text-black uppercase tracking-widest mb-8 flex items-center gap-2">
-          <Database size={16} strokeWidth={2.5}/>
-          Allocated Resources - {experiment.allocatedResources?.length || 0}
+      {/* SPECIFICA: sempre presente, e' cio' che l'utente ha dichiarato */}
+      <section className="mb-10">
+        <h2 className="text-sm font-bold text-black uppercase tracking-widest mb-6 flex items-center gap-2">
+          <FileText size={16} strokeWidth={2.5} />
+          Specification
         </h2>
 
-        {(!experiment.allocatedResources || experiment.allocatedResources.length === 0) ? (
-          <div className="flex items-center gap-3 text-gray-400 p-6 bg-gray-50 rounded-2xl border border-gray-100 border-dashed">
-            <Box size={20} />
-            <p className="text-sm font-medium">No resources attached to this experiment.</p>
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <Field label="Duration" value={experiment.spec.duration} />
+          <Field label="Resources" value={experiment.resourceCount ?? 0} />
+          <div className="sm:col-span-2">
+            <Field
+              label="Description"
+              value={experiment.spec.description || 'No description provided.'}
+            />
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {experiment.allocatedResources.map((res, index) => (
-              // CARD DELLA RISORSA MINIMALE
-              <div 
-                key={index} 
-                className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg hover:shadow-gray-100/50 transition-all duration-300 relative flex flex-col h-full group"
-              >
-                {/* TOP: Solo Titolo */}
-                <div>
-                  <h3 className="font-bold text-gray-900 truncate text-base" title={res.resourceName}>
-                    {res.resourceName}
-                  </h3>
-                </div>
+        </div>
+      </section>
 
-                {/* BOTTOM: Badge a sinistra e Info a destra */}
-                <div className="flex justify-between items-end mt-4">
-                  <span className={`border border-gray-200 px-2.5 py-1 text-[11px] font-bold rounded-md uppercase tracking-wider ${
-                    res.type === 'full' 
-                      ? 'bg-white text-black' 
-                      : 'bg-white text-black'
-                  }`}>
-                    {res.type === 'full' ? 'FULL MACHINE' : 'NAMESPACE'}
-                  </span>
-                  
-                  <button
-                    onClick={() => handleOpenResourceInfo(res.resourceId)}
-                    className="p-1.5 -mb-0.5 -mr-1.5 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                    title="View Resource Details"
-                  >
-                    <Info size={18} strokeWidth={2.5} />
-                  </button>
-                </div>
-              </div>
-            ))}
+      {/* DATI SLICES: presenti solo dopo la materializzazione */}
+      {slicesExperimentId && (
+        <section className="mb-10">
+          <h2 className="text-sm font-bold text-black uppercase tracking-widest mb-6 flex items-center gap-2">
+            <Clock size={16} strokeWidth={2.5} />
+            SLICES-RI
+          </h2>
+
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="sm:col-span-2">
+              <Field label="Experiment ID" value={slicesExperimentId} mono />
+            </div>
+            <Field label="Project" value={projectName || '—'} />
+            <Field label="Created" value={formatDateTime(createdAt) || '—'} />
+            <Field
+              label="Time left"
+              value={formatTimeLeft(expiresAt) || '—'}
+              urgent={isExpiringSoon(expiresAt)}
+            />
+            <Field label="Expires" value={formatDateTime(expiresAt) || '—'} />
           </div>
-        )}
-      </div>
-
-      {/* ==========================================
-          BOTTOM CONTROLS
-          ========================================== */}
-      <div className="pt-8 mt-auto flex justify-end items-center gap-4 border-t border-gray-100">
-
-        <button 
-          onClick={() => setIsDeleteModalOpen(true)}
-          className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-400 flex items-center justify-center gap-2 bg-white text-black border border-gray-200 hover:bg-red-500 hover:text-white hover:border-white cursor-pointer"
-        >
-          <Trash2 size={16} />
-          Delete
-        </button>
-      </div>
-      
-      {/* ==========================================
-          RENDER DELLA MODALE RISORSE
-          ========================================== */}
-      {selectedResource && (
-        <ResourceDetailsModal
-          resource={selectedResource}
-          onClose={() => setSelectedResource(null)}
-        />
+        </section>
       )}
 
-      {/* RENDER DELLA MODALE DI ELIMINAZIONE */}
+      {/* RISORSE: verranno collegate quando la sezione Resources sara' pronta */}
+      <section className="flex-1 mb-10">
+        <h2 className="text-sm font-bold text-black uppercase tracking-widest mb-6 flex items-center gap-2">
+          <Database size={16} strokeWidth={2.5} />
+          Resources — {experiment.resourceCount ?? 0}
+        </h2>
+
+        <div className="flex items-center gap-3 text-gray-400 p-6 bg-gray-50 rounded-2xl border border-gray-100 border-dashed">
+          <Box size={20} />
+          <p className="text-sm font-medium">
+            No resources attached to this experiment yet.
+          </p>
+        </div>
+      </section>
+
+      {/* AZIONI: visibili solo sulle bozze */}
+      {editable && (
+        <div className="pt-8 mt-auto flex justify-end items-center gap-3 border-t border-gray-100">
+          <button
+            onClick={() => onEdit(experiment)}
+            className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-300 flex items-center gap-2 bg-white text-black border border-gray-200 hover:bg-gray-50 cursor-pointer"
+          >
+            <Pencil size={16} />
+            Edit
+          </button>
+
+          <button
+            onClick={() => setIsDeleteModalOpen(true)}
+            className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-300 flex items-center gap-2 bg-white text-black border border-gray-200 hover:bg-rose-500 hover:text-white hover:border-rose-500 cursor-pointer"
+          >
+            <Trash2 size={16} />
+            Delete draft
+          </button>
+        </div>
+      )}
+
       {isDeleteModalOpen && (
         <DeleteExperimentModal
           experiment={experiment}
           onClose={() => setIsDeleteModalOpen(false)}
           onConfirm={(id) => {
             setIsDeleteModalOpen(false);
-            onDelete(id); // Passa l'azione al componente genitore (ExperimentsPage)
+            onDelete(id);
           }}
         />
       )}
-      
+
     </div>
   );
 }

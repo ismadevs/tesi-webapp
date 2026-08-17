@@ -1,64 +1,59 @@
-import { X } from 'lucide-react';
+import { X, Trash2 } from 'lucide-react';
+
+// ==========================================
+// DELETE EXPERIMENT MODAL
+// ==========================================
+// Conferma l'eliminazione della SPECIFICA, non la distruzione di risorse su
+// SLICES: sono due operazioni con semantica diversa, e confonderle sarebbe un
+// errore di progetto. Per questo la modale compare solo sulle bozze, dove non
+// esiste nulla di allocato, e il testo lo dichiara esplicitamente.
 
 export default function DeleteExperimentModal({ experiment, onClose, onConfirm }) {
-  // Controllo di sicurezza
-  if (!experiment) return null;
-
   return (
-    // BACKDROP: Allineato alle altre modali
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200" 
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={onClose}
     >
-      {/* MODAL CONTAINER */}
-      <div 
-        className="bg-white rounded-4xl w-full max-w-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col"
+      <div
+        className="bg-white rounded-3xl w-full max-w-xl shadow-2xl animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
-        
-        {/* ==========================================
-            HEADER
-            ========================================== */}
-        <div className="flex items-center justify-between px-8 py-6 border-b border-gray-100 shrink-0">
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">
-              Delete Experiment
-            </h2>
-          </div>
-          <button 
-            onClick={onClose} 
-            className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors cursor-pointer shrink-0"
-            aria-label="Close modal"
+
+        <div className="flex items-start justify-between p-8 pb-4">
+          <h2 className="text-xl font-extrabold text-gray-900 tracking-tight">
+            Delete draft
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
           >
             <X size={20} strokeWidth={2.5} />
           </button>
         </div>
-        
-        {/* ==========================================
-            BODY
-            ========================================== */}
-        <div className="p-8 text-left">
-          <p className="text-lg text-gray-700 leading-relaxed">
-            Are you sure you want to permanently delete the experiment <strong className="text-gray-900">{experiment.name}</strong>? 
-            This action cannot be undone, and all allocated resources will be detached.
+
+        <div className="px-8 pb-6">
+          <p className="text-sm text-gray-600 leading-relaxed">
+            The draft{' '}
+            <span className="font-bold text-gray-900">{experiment.spec.name}</span>{' '}
+            will be removed from the platform. Nothing is allocated on SLICES-RI,
+            so no resources are affected.
           </p>
         </div>
 
-        {/* ==========================================
-            FOOTER
-            ========================================== */}
-        <div className="px-8 py-5 flex items-center justify-end gap-3 border-t border-gray-100 bg-gray-50/50 shrink-0">
-          <button 
+        <div className="px-8 py-5 flex items-center justify-end gap-3 border-t border-gray-100">
+          <button
+            type="button"
             onClick={onClose}
             className="px-6 py-2.5 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
           >
             Cancel
           </button>
-          
-          <button 
+          <button
+            type="button"
             onClick={() => onConfirm(experiment.id)}
-            className="px-6 py-2.5 text-sm font-bold text-white bg-red-500 rounded-xl hover:bg-red-600 transition-colors cursor-pointer shadow-sm"
+            className="px-6 py-2.5 text-sm font-bold text-white bg-rose-500 rounded-xl hover:bg-rose-600 transition-colors cursor-pointer flex items-center gap-2"
           >
+            <Trash2 size={16} />
             Delete
           </button>
         </div>
