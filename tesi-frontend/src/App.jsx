@@ -12,6 +12,7 @@ import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
 import ResourcesPage from './pages/Resources/ResourcesPage';
 import ExperimentsPage from './pages/Experiments/ExperimentsPage';
+import DeployPage from './pages/Deploy/DeployPage';
 
 // Importo il componente per proteggere le pagine private della webapp
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -90,39 +91,26 @@ function App() {
     <BrowserRouter>
       {/* Routes è il contenitore di tutti i possibili percorsi della mia app */}
       <Routes>
-        
         {/* ROTTA PUBBLICA (Root URL: / ) */}
-        <Route 
-          path="/" 
+        <Route
+          path="/"
           element={
             // Controllo lo stato dell'autenticazione:
             // Se NON sono autenticato (!isAuthenticated), mostro la mia Landing Page pubblica.
             // Se INVECE ho già il token, uso Navigate per rimbalzare l'utente direttamente sulla Dashboard (/home)
-            !isAuthenticated 
-              ? <LandingPage /> 
-              : <Navigate to="/home" replace />
-          } 
+            !isAuthenticated ? <LandingPage /> : <Navigate to="/home" replace />
+          }
         />
-        
+
         {/* ROTTA PRIVATA (URL: /home) */}
-        <Route 
-          path="/home" 
+        <Route
+          path="/home"
           element={
             // Proteggo questa pagina:
             // Se l'utente HA il token (isAuthenticated), gli permetto di renderizzare la HomePage.
             // Se tenta di scrivere "/home" a mano ma non ha fatto il login, lo rispedisco subito alla "/"
             <ProtectedRoute isAuthenticated={isAuthenticated}>
               <HomePage />
-            </ProtectedRoute>
-          } 
-        />
-
-        {/* NUOVA ROTTA PRIVATA (URL: /resources) */}
-        <Route
-          path="/resources"
-          element={
-            <ProtectedRoute isAuthenticated={isAuthenticated}>
-              <ResourcesPage />
             </ProtectedRoute>
           }
         />
@@ -137,6 +125,26 @@ function App() {
           }
         />
 
+        {/* NUOVA ROTTA PRIVATA (URL: /resources) */}
+        <Route
+          path="/resources"
+          element={
+            <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <ResourcesPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ROTTA PRIVATA (URL: /deploy) */}
+        <Route
+          path="/deploy"
+          element={
+            <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <DeployPage />
+            </ProtectedRoute>
+          }
+        />
+        
       </Routes>
     </BrowserRouter>
   );
