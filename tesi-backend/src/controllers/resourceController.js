@@ -1,94 +1,85 @@
-// Importiamo le singole funzioni destrutturate dal Service aggiornato.
-import { createResource, getAllResources, deleteResource, updateResource } from '../services/resourceService.js';
+// ==========================================
+// PRESENTATION LAYER (CONTROLLER) - RESOURCES
+// ==========================================
 
-// ==========================================
-// CONTROLLER PER LA LETTURA (GET)
-// ==========================================
+import * as resourceService from '../services/resourceService.js';
+import { getCatalog } from '../models/catalog.js';
+
+// Stessa traduzione usata per gli esperimenti: il service lancia errori
+// tipizzati senza sapere nulla di HTTP, e qui si stabilisce in un punto solo
+// la corrispondenza con i codici di stato.
+const handleError = (error, res) => {
+  switch (error.name) {
+    case 'ValidationError':
+      return res.status(400).json({ message: error.message, field: error.field });
+    case 'NotFoundError':
+      return res.status(404).json({ message: error.message });
+    case 'ConflictError':
+      return res.status(409).json({ message: error.message });
+    default:
+      console.error('Errore non gestito:', error);
+      return res.status(500).json({ message: 'Errore interno del server.' });
+  }
+};
+
+// GET /api/resources?experimentId=exp-...
+// Il filtro è opzionale nell'API ma di fatto sempre usato dall'interfaccia:
+// la sezione Resources è ambita a un esperimento selezionato, coerentemente
+// con il fatto che `slices bi list` richiede obbligatoriamente --experiment.
 export const getResources = (req, res) => {
   try {
-    const resources = getAllResources();
-    res.status(200).json(resources);
+    const { experimentId } = req.query;
+    res.status(200).json(resourceService.getAllResources(experimentId || null));
   } catch (error) {
-    console.error("🚨 (Resources) ERRORE REALE DURANTE LA GET:", error);
-    res.status(500).json({ error: "Errore nel recupero delle risorse" });
+    handleError(error, res);
   }
 };
 
-// ==========================================
-// CONTROLLER PER LA CREAZIONE (POST)
-// ==========================================
-export const addResource = (req, res) => {
+// GET /api/resources/catalog
+// Restituisce in un colpo solo infrastrutture, flavor e immagini. La cascata
+// dei menu (il sito filtra flavor e immagini) viene poi applicata lato client
+// senza ulteriori richieste.
+export const getResourceCatalog = (req, res) => {
   try {
-    const resourceData = req.body;
-
-    // 1. VALIDAZIONE BASE E REQUISITI SLICES-RI
-    if (!resourceData.name) {
-      return res.status(400).json({ error: "Il campo 'name' è obbligatorio." });
-    }
-
-    // Le risorse non possono esistere fluttuanti, devono appartenere a un esperimento[cite: 1, 2].
-    if (!resourceData.experiment) {
-      return res.status(400).json({ error: "Ogni risorsa deve essere associata a un esperimento." });
-    }
-
-    // Validiamo i due siti principali della piattaforma.
-    const validSites = ['be-gent1-bi-vm1', 'be-gent1-bi-baremetal1'];
-    if (!resourceData.siteId || !validSites.includes(resourceData.siteId)) {
-      return res.status(400).json({ error: "Devi specificare un 'siteId' valido ('be-gent1-bi-vm1' o 'be-gent1-bi-baremetal1')." });
-    }
-
-    // 2. ESECUZIONE DELLA LOGICA
-    const newResource = createResource(resourceData);
-
-    // 3. RISPOSTA DI SUCCESSO
-    res.status(201).json(newResource);
+    res.status(200).json(getCatalog());
   } catch (error) {
-    console.error("🚨 (Resources) ERRORE REALE DURANTE LA POST:", error);
-    res.status(500).json({ error: "Errore interno del server" });
+    handleError(error, res);
   }
 };
 
-// ==========================================
-// CONTROLLER PER L'ELIMINAZIONE (DELETE)
-// ==========================================
-export const removeResource = (req, res) => {
+// GET /api/resources/:id
+export const getResource = (req, res) => {
   try {
-    const { id } = req.params;
-    const isDeleted = deleteResource(id);
-
-    if (!isDeleted) {
-      return res.status(404).json({ error: `Risorsa con ID ${id} non trovata.` });
-    }
-
-    res.status(200).json({ message: "Risorsa eliminata con successo." });
+    res.status(200).json(resourceService.getResourceById(req.params.id));
   } catch (error) {
-    console.error("🚨 (Resources) ERRORE REALE DURANTE LA DELETE:", error);
-    res.status(500).json({ error: "Errore interno del server durante l'eliminazione" });
+    handleError(error, res);
   }
 };
 
-// ==========================================
-// CONTROLLER PER LA MODIFICA (PUT)
-// ==========================================
-export const editResource = (req, res) => {
+// POST /api/resources
+export const createResource = (req, res) => {
   try {
-    const { id } = req.params;
-    const resourceData = req.body;
-
-    // Se prova a modificare il nome, controlliamo che non sia vuoto
-    if (resourceData.name !== undefined && !resourceData.name.trim()) {
-      return res.status(400).json({ error: "Il campo 'name' non può essere vuoto." });
-    }
-
-    const updatedResource = updateResource(id, resourceData);
-
-    if (!updatedResource) {
-      return res.status(404).json({ error: `Risorsa con ID ${id} non trovata.` });
-    }
-
-    res.status(200).json(updatedResource);
+    res.status(201).json(resourceService.createResource(req.body));
   } catch (error) {
-    console.error("🚨 ERRORE REALE DURANTE LA PUT:", error);
-    res.status(500).json({ error: "Errore interno del server durante la modifica" });
+    handleError(error, res);
+  }
+};
+
+// PUT /api/resources/:id
+export const updateResource = (req, res) => {
+  try {
+    res.status(200).json(resourceService.updateResource(req.params.id, req.body));
+  } catch (error) {
+    handleError(error, res);
+  }
+};
+
+// DELETE /api/resources/:id
+export const deleteResource = (req, res) => {
+  try {
+    resourceService.deleteResource(req.params.id);
+    res.status(204).send();
+  } catch (error) {
+    handleError(error, res);
   }
 };

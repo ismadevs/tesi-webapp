@@ -1,70 +1,164 @@
 // ==========================================
-// LAYER DEI DATI (MODEL) - Resource.js
+// LAYER DEI DATI (MODEL) - RESOURCES
 // ==========================================
-// Questo file definisce la struttura esatta di una "Risorsa" 
-// all'interno della piattaforma Slices-RI.
+// Una Risorsa e' la macchina vera: una VM o un server baremetal allocato su
+// un sito di SLICES-RI.
+//
+// RELAZIONE CON L'ESPERIMENTO
+// La risorsa NON ha esistenza autonoma. Nasce dentro un esperimento e muore
+// con lui: non e' un oggetto riutilizzabile che si aggancia e si sgancia.
+// Il vincolo non e' una semplificazione del prototipo ma la semantica della
+// piattaforma, verificabile dal fatto che `slices bi list` richiede
+// obbligatoriamente --experiment e non esiste modo di elencare le proprie
+// risorse globalmente.
+//
+// Per questo il riferimento va in questa direzione: la risorsa punta al suo
+// esperimento, e non l'esperimento a un elenco di risorse.
+
+import { kindForInfra } from './catalog.js';
+
+// ==========================================
+// STATI
+// ==========================================
+// I primi due appartengono alla piattaforma, gli altri riflettono l'esito
+// dell'interazione con SLICES. Sono gli stessi dell'esperimento perche' la
+// risorsa segue il ciclo di vita del suo contenitore: viene materializzata
+// insieme a lui e con lui fallisce.
+export const RESOURCE_STATUS = {
+  DRAFT: 'DRAFT',
+  DEPLOY_REQUESTED: 'DEPLOY_REQUESTED',
+  DEPLOYING: 'DEPLOYING',
+  DEPLOYED: 'DEPLOYED',
+  FAILED: 'FAILED',
+};
+
+export const RESOURCE_STATUSES = Object.values(RESOURCE_STATUS);
+
+// ==========================================
+// STATI RIPORTATI DA SLICES
+// ==========================================
+// Sequenza osservata sperimentalmente durante il provisioning:
+//   imaging      copia dell'immagine disco sul volume
+//   booting      avvio del sistema operativo
+//   initializing configurazione al primo avvio, inclusa l'iniezione della
+//                chiave SSH
+//   up           macchina pronta e raggiungibile
+//
+// Non e' documentata da nessuna parte. Averla esplicita permette
+// all'interfaccia di mostrare a che punto e' l'allocazione invece di un
+// generico indicatore di attesa: e' informazione che la CLI fornisce solo a
+// chi sa interpretarla.
+//
+// Attenzione: i valori sono in MINUSCOLO. La tabella della CLI li mostra
+// capitalizzati, ma l'output JSON riporta la forma reale.
+export const SLICES_PROVISIONING_STEPS = ['imaging', 'booting', 'initializing', 'up'];
+
+// Solo in DRAFT la specifica e' modificabile. Vale anche per la risorsa:
+// una volta allocata la macchina, cambiare la specifica non avrebbe alcun
+// effetto sull'hardware gia' assegnato.
+export const isEditable = (resource) => resource.status === RESOURCE_STATUS.DRAFT;
 
 export default class Resource {
-  constructor(data) {
+  constructor(data = {}) {
     // ==========================================
-    // 1. IDENTIFICAZIONE BASE E GERARCHIA
+    // 1. IDENTIFICATORI
     // ==========================================
-    // ID generato internamente dal backend o restituito dalla piattaforma
-    this.id = data.id;
+    this.id = data.id || null;
 
-    // Il nome testuale ("friendly_name") scelto dall'utente[cite: 1, 2].
-    this.name = data.name;
-
-    // Relazione obbligatoria: ogni risorsa DEVE appartenere a un esperimento[cite: 1, 2].
-    this.experiment = data.experiment;
+    // Riferimento all'identificatore LOCALE dell'esperimento, non a quello
+    // di SLICES. La relazione deve valere anche prima del deploy, quando
+    // l'identificatore remoto non esiste ancora.
+    this.experimentId = data.experimentId || null;
 
     // ==========================================
-    // 2. POSIZIONAMENTO E TIPO INFRASTRUTTURA
+    // 2. SPECIFICA (dichiarata dall'utente)
     // ==========================================
-    // Il Site ID è il pilastro architetturale che differenzia il tipo di macchina.
-    // VM usano siti come "be-gent1-bi-vm1", mentre le macchine fisiche 
-    // usano siti come "be-gent1-bi-baremetal1"[cite: 1, 2].
-    this.siteId = data.siteId;
+    const spec = data.spec || {};
+    const infra = spec.infra ?? null;
+
+    this.spec = {
+      name: (spec.name ?? '').trim(),
+
+      // Sito su cui allocare. In SLICES non e' un parametro di `bi create` ma
+      // il contesto del gruppo `slices bi`, indicato con --infra.
+      infra,
+
+      // Tipo di risorsa. SLICES non lo accetta come parametro: lo DERIVA dal
+      // sito. Qui viene reso esplicito perche' rende il documento leggibile
+      // senza consultare il catalogo, e perche' e' il concetto che l'utente
+      // ha in mente quando compila il form.
+      kind: spec.kind ?? kindForInfra(infra),
+
+      flavor: spec.flavor ?? null,
+      image: spec.image ?? null,
+
+      // Richiesta di indirizzo IP pubblico.
+      //
+      // VINCOLO SCOPERTO SPERIMENTALMENTE: la specifica JSON di
+      // `create-from-file` RIFIUTA questo campo con l'errore
+      // "Object contains unknown field `public_ipv4`", mentre
+      // `slices bi create` lo accetta come --public-ipv4.
+      //
+      // Due interfacce della stessa API con capacita' diverse. La
+      // piattaforma compensa la discrepanza: l'orchestratore sceglie il
+      // comando in base a cio' che l'esperimento contiene, invece di
+      // ereditarne il limite.
+      publicIpv4: spec.publicIpv4 ?? false,
+    };
 
     // ==========================================
-    // 3. HARDWARE E SISTEMA OPERATIVO
+    // 3. STATO
     // ==========================================
-    // Il sistema operativo da installare (es. "Ubuntu 24.04.1" o "Debian 12.7")[cite: 1, 2].
-    this.diskImage = data.diskImage;
-
-    // La taglia della macchina.
-    // Per le VM sarà qualcosa tipo "m1.small", per i Baremetal "pcgen07" o "pc"[cite: 1, 2].
-    this.flavor = data.flavor;
+    this.status = RESOURCE_STATUSES.includes(data.status)
+      ? data.status
+      : RESOURCE_STATUS.DRAFT;
 
     // ==========================================
-    // 4. CICLO DI VITA E AUTOMAZIONE
+    // 4. DATI RESTITUITI DA SLICES
     // ==========================================
-    // La durata dell'istanza prima dell'autodistruzione.
-    // Di default viene impostata a "3h"[cite: 2].
-    // Nella validazione futura ricorderemo che il tetto massimo è 2160 ore (90 giorni)[cite: 2].
-    this.duration = data.duration || "3h";
+    const remote = data.remote || {};
+    this.remote = {
+      // Identificatore reale, formato r_be-gent1-bi-vm1_01kz...
+      resourceId: remote.resourceId ?? null,
 
-    // Il numero di risorse identiche da creare contemporaneamente (default 1)[cite: 1, 2].
-    this.count = Number(data.count) || 1;
+      // Stato riportato dalla piattaforma, minuscolo.
+      slicesStatus: remote.slicesStatus ?? null,
 
-    // ==========================================
-    // 5. ACCESSO E SICUREZZA
-    // ==========================================
-    // Richiesta di un indirizzo IPv4 pubblico[cite: 1, 2].
-    this.publicIpv4 = typeof data.publicIpv4 === 'boolean' ? data.publicIpv4 : false;
+      // Indirizzo pubblico, presente solo se richiesto e concesso.
+      publicIpv4: remote.publicIpv4 ?? null,
 
-    // La chiave pubblica (Extra) per registrare il login SSH[cite: 1, 2].
-    this.sshKey = data.sshKey || null;
+      // Indirizzo sulla rete interna del sito. Le macchine ne hanno comunque
+      // uno anche senza IP pubblico, ed e' quello usato per l'accesso SSH.
+      privateIpv4: remote.privateIpv4 ?? null,
 
-    // ==========================================
-    // 6. METADATI DI STATO (Generati dal backend)
-    // ==========================================
-    // Stati mappati per rispecchiare il reale comportamento delle macchine.
-    // Quando la risorsa viene allocata, parte nello stato 'starting'[cite: 2].
-    // Quando è pronta per la connessione SSH, passa allo stato 'up'[cite: 2].
-    const validStatuses = ['starting', 'up', 'stopped', 'deleted'];
-    this.status = validStatuses.includes(data.status) ? data.status : 'starting';
+      // Console della macchina via browser, fornita da SLICES. E' una
+      // funzionalita' che la CLI non offre e che l'interfaccia web puo'
+      // esporre senza alcuna implementazione.
+      consoleUrl: remote.consoleUrl ?? null,
 
+      // Dati di accesso: host, porta, utente, ed eventuale jump proxy.
+      // Le macchine senza indirizzo pubblico restano raggiungibili
+      // attraverso un bastion host fornito dall'infrastruttura.
+      sshLogin: remote.sshLogin ?? null,
+
+      createdAt: remote.createdAt ?? null,
+      expiresAt: remote.expiresAt ?? null,
+      terminatedAt: remote.terminatedAt ?? null,
+
+      // Scadenza prevista e termine effettivo sono campi distinti: una
+      // risorsa distrutta prima della scadenza avra' valori diversi.
+      failureReason: remote.failureReason ?? null,
+    };
+
+    this.error = data.error ?? null;
+
+    // Timestamp locali, riferiti al documento nella piattaforma e non alla
+    // risorsa su SLICES.
     this.createdAt = data.createdAt || new Date().toISOString();
+    this.updatedAt = data.updatedAt || this.createdAt;
+  }
+
+  get isDeployed() {
+    return this.remote.resourceId !== null;
   }
 }
