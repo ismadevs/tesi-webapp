@@ -375,19 +375,81 @@ const deployExperiment = async (experiment) => {
 };
 
 // ==========================================
+// DISTRUZIONE DELLE RISORSE
+// ==========================================
+const findResourcesToDestroy = () =>
+  mockResources.filter((res) => res.status === RESOURCE_STATUS.DESTROY_REQUESTED);
+
+const destroyResource = async (resource) => {
+  const experiment = mockExperiments.find((e) => e.id === resource.experimentId);
+  const slicesExperimentId = experiment?.remote.slicesExperimentId;
+
+  if (!slicesExperimentId) {
+    updateResource(resource.id, {
+      status: RESOURCE_STATUS.FAILED,
+      remote: {
+        ...resource.remote,
+        failureReason: 'Esperimento remoto non trovato.',
+      },
+    });
+    return;
+  }
+
+  log(`Distruzione di "${resource.spec.name}"`);
+  updateResource(resource.id, { status: RESOURCE_STATUS.DESTROYING });
+
+  try {
+    await slicesService.destroyResources(slicesExperimentId, [resource.spec.name]);
+
+    // Il documento resta: cambia stato e registra quando la macchina è stata
+    // liberata. `expiresAt` conserva la scadenza che avrebbe avuto, così la
+    // differenza fra i due campi racconta se è stata distrutta prima del tempo.
+    updateResource(resource.id, {
+      status: RESOURCE_STATUS.DESTROYED,
+      remote: {
+        ...resource.remote,
+        slicesStatus: null,
+        terminatedAt: new Date().toISOString(),
+      },
+    });
+
+    log(`"${resource.spec.name}" distrutta`);
+  } catch (error) {
+    log(`Distruzione di "${resource.spec.name}" fallita: ${error.message}`);
+
+    // Si torna a DEPLOYED e non a FAILED: la macchina è ancora allocata,
+    // quindi lo stato deve dire la verità e l'utente può riprovare.
+    updateResource(resource.id, {
+      status: RESOURCE_STATUS.DEPLOYED,
+      remote: { ...resource.remote, failureReason: error.message },
+    });
+  }
+};
+
+// ==========================================
 // CICLO DI OSSERVAZIONE
 // ==========================================
 
 const processPending = async () => {
   if (isProcessing) return;
 
+  // Due tipi di lavoro da svolgere: esperimenti da materializzare e risorse
+  // da liberare. Entrambi nascono da uno stato scritto dall'interfaccia.
   const pending = findPendingExperiments();
-  if (pending.length === 0) return;
+  const toDestroy = findResourcesToDestroy();
+
+  if (pending.length === 0 && toDestroy.length === 0) return;
 
   isProcessing = true;
   try {
     for (const experiment of pending) {
       await deployExperiment(experiment);
+    }
+
+    // Le distruzioni dopo le materializzazioni: un deploy in corso ha la
+    // precedenza, e in ogni caso le due code sono indipendenti.
+    for (const resource of toDestroy) {
+      await destroyResource(resource);
     }
   } finally {
     isProcessing = false;

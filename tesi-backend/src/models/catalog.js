@@ -70,6 +70,18 @@ export const FLAVORS = {
     { name: 'xlarge',   description: 'Extra Large General Purpose VM', vcpus: 8, ramGib: 32, rootDiskGb: 200 },
   ],
 
+  // Solo `pc` funziona.
+  //
+  // MOTIVO, VERIFICATO SPERIMENTALMENTE: `flavor list` elenca dieci flavor
+  // baremetal, ma allocabili sono solo quelli presenti su una macchina fisica
+  // libera. `slices bi machine list` mostra il pool disponibile, e i suoi
+  // flavor sono tipicamente {pc, pcgen07-gpu980}. Richiedere un flavor senza
+  // hardware libero fallisce con "Flavor specified for resource X not found",
+  // messaggio fuorviante perché il flavor esiste, manca la macchina.
+  //
+  // `pc` compare su tutte le macchine del pool ed è quindi l'unico sempre
+  // ottenibile. Incrociare dinamicamente i due cataloghi è possibile
+  // (`machine list` supporta --format json) ed è indicato come sviluppo futuro.
   'be-gent1-bi-baremetal1': [
     { name: 'pc',              description: 'Any baremetal pc',       cpuTopology: '0x0x0',  ramGib: 0,      rootDiskGb: 0,    gpu: null },
     { name: 'pcgen05-gpu5090', description: 'Generation 5 with GPU',  cpuTopology: '1x8x1',  ramGib: 32,     rootDiskGb: 250,  gpu: 'GTX5090' },

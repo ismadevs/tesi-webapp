@@ -11,8 +11,19 @@ import ResourceCard from './ResourceCard';
 import ResourceFormModal from './ResourceFormModal';
 import ResourceDetailsModal from './ResourceDetailsModal';
 import DeleteResourceModal from './DeleteResourceModal';
+import DestroyResourceModal from './DestroyResourceModal';
 
 const API = 'http://localhost:3000/api';
+
+// Stati in cui qualcosa si sta muovendo sull'infrastruttura. Finché almeno
+// una risorsa si trova in uno di questi, l'interfaccia continua a interrogare
+// il backend per seguire l'evoluzione.
+const TRANSIENT = [
+  STATUS.DEPLOY_REQUESTED,
+  STATUS.DEPLOYING,
+  STATUS.DESTROY_REQUESTED,
+  STATUS.DESTROYING,
+];
 
 // ==========================================
 // CONTAINER COMPONENT - RESOURCES PAGE
@@ -38,6 +49,7 @@ export default function ResourcesPage() {
   const [formTarget, setFormTarget] = useState(null);
   const [detailTarget, setDetailTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [destroyTarget, setDestroyTarget] = useState(null);
 
   const selectedExperiment = experiments.find((e) => e.id === selectedId) ?? null;
 
@@ -109,6 +121,23 @@ export default function ResourcesPage() {
   }, [selectedId]);
 
   // ==========================================
+  // POLLING CONDIZIONATO
+  // ==========================================
+  // Attivo solo mentre c'è qualcosa in movimento. È ciò che fa avanzare la
+  // progressione del provisioning sulle card e che mostra il passaggio a
+  // Destroyed senza ricaricare la pagina.
+  //
+  // Con CouchDB questo blocco sparirà: il changes feed notifica i cambiamenti
+  // invece di richiedere interrogazioni periodiche.
+  useEffect(() => {
+    const hasPending = resources.some((r) => TRANSIENT.includes(r.status));
+    if (!hasPending) return;
+
+    const timer = setInterval(() => fetchResources(selectedId), 3000);
+    return () => clearInterval(timer);
+  }, [resources, selectedId]);
+
+  // ==========================================
   // MUTAZIONI
   // ==========================================
   const handleSave = async (payload) => {
@@ -141,6 +170,8 @@ export default function ResourcesPage() {
     }
   };
 
+  // Rimuove il DOCUMENTO di una bozza. Su SLICES non esiste nulla, quindi non
+  // succede altro. È operazione diversa da handleDestroy.
   const handleDelete = async (id) => {
     try {
       const response = await fetch(`${API}/resources/${id}`, { method: 'DELETE' });
@@ -152,7 +183,31 @@ export default function ResourcesPage() {
 
       setResources((prev) => prev.filter((r) => r.id !== id));
       setDeleteTarget(null);
-      toast.success('Resource deleted.');
+      toast.success('Draft deleted.');
+    } catch {
+      toast.error('Cannot reach the server.');
+    }
+  };
+
+  // Libera HARDWARE REALE su SLICES. Il documento non sparisce dall'elenco:
+  // resta come storico con stato DESTROYED, coerentemente con il principio
+  // per cui la specifica sopravvive alla risorsa.
+  //
+  // La richiesta ritorna subito con 202: sarà l'orchestratore a invocare la
+  // CLI, e il polling sopra seguirà l'evoluzione dello stato.
+  const handleDestroy = async (id) => {
+    try {
+      const response = await fetch(`${API}/resources/${id}/destroy`, { method: 'POST' });
+
+      if (!response.ok) {
+        toast.error(await readError(response, 'Unable to destroy the resource.'));
+        return;
+      }
+
+      const updated = await response.json();
+      setResources((prev) => prev.map((r) => (r.id === id ? updated : r)));
+      setDestroyTarget(null);
+      toast.success('Destruction requested.');
     } catch {
       toast.error('Cannot reach the server.');
     }
@@ -234,6 +289,7 @@ export default function ResourcesPage() {
             onOpenInfo={setDetailTarget}
             onEdit={setFormTarget}
             onDelete={setDeleteTarget}
+            onDestroy={setDestroyTarget}
           />
         ))}
       </div>
@@ -300,8 +356,8 @@ export default function ResourcesPage() {
         {selectedExperiment && !editable && (
           <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl mb-8">
             <p className="text-sm text-emerald-700">
-              This experiment has been materialized on SLICES-RI. Its resources can
-              no longer be modified.
+              This experiment has been materialized on SLICES-RI. No resources can be
+              added, but you can release the ones that are still running.
             </p>
           </div>
         )}
@@ -332,6 +388,14 @@ export default function ResourcesPage() {
             resource={deleteTarget}
             onClose={() => setDeleteTarget(null)}
             onConfirm={handleDelete}
+          />
+        )}
+
+        {destroyTarget && (
+          <DestroyResourceModal
+            resource={destroyTarget}
+            onClose={() => setDestroyTarget(null)}
+            onConfirm={handleDestroy}
           />
         )}
 

@@ -30,7 +30,27 @@ export const RESOURCE_STATUS = {
   DEPLOYING: 'DEPLOYING',
   DEPLOYED: 'DEPLOYED',
   FAILED: 'FAILED',
+
+  // Ciclo di distruzione. Segue lo stesso schema del deploy: l'interfaccia
+  // scrive la richiesta, l'orchestratore la esegue.
+  DESTROY_REQUESTED: 'DESTROY_REQUESTED',
+  DESTROYING: 'DESTROYING',
+
+  // La macchina è stata liberata su SLICES per volontà dell'utente.
+  // Il documento NON viene cancellato: la specifica sopravvive alla risorsa,
+  // che è il principio su cui poggia l'intera piattaforma. Cancellarlo
+  // riprodurrebbe il problema che il sistema vuole risolvere.
+  DESTROYED: 'DESTROYED',
 };
+
+// Stati in cui la risorsa esiste ancora sull'infrastruttura e occupa hardware.
+export const LIVE_STATUSES = [
+  RESOURCE_STATUS.DEPLOY_REQUESTED,
+  RESOURCE_STATUS.DEPLOYING,
+  RESOURCE_STATUS.DEPLOYED,
+  RESOURCE_STATUS.DESTROY_REQUESTED,
+  RESOURCE_STATUS.DESTROYING,
+];
 
 export const RESOURCE_STATUSES = Object.values(RESOURCE_STATUS);
 

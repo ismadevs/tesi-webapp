@@ -104,11 +104,22 @@ const validateDuration = (duration) => {
 // in SLICES la risorsa appartiene all'esperimento, quindi si contano le risorse
 // che vi fanno riferimento. Calcolarlo qui evita che il frontend debba
 // interrogare due endpoint per riempire una colonna della tabella.
-const withResourceCount = (experiment) => ({
-  ...experiment,
-  isDeployed: experiment.remote.slicesExperimentId !== null,
-  resourceCount: mockResources.filter((r) => r.experimentId === experiment.id).length,
-});
+const LIVE = ['DEPLOY_REQUESTED', 'DEPLOYING', 'DEPLOYED', 'DESTROY_REQUESTED', 'DESTROYING'];
+
+const withResourceCount = (experiment) => {
+  const all = mockResources.filter((r) => r.experimentId === experiment.id);
+
+  return {
+    ...experiment,
+    isDeployed: experiment.remote.slicesExperimentId !== null,
+    // Le bozze contano come vive: esistono nella piattaforma e verranno
+    // materializzate. Le distrutte no: restano solo come storico.
+    resourceCount: all.filter(
+      (r) => r.status === 'DRAFT' || LIVE.includes(r.status)
+    ).length,
+    totalResourceCount: all.length,
+  };
+};
 
 // Generazione dell'identificatore locale. Con CouchDB diventera' il campo _id;
 // il formato con prefisso rende leggibile il tipo di documento.
@@ -239,12 +250,19 @@ export const deleteExperiment = (id) => {
     );
   }
 
-  const attachedResources = mockResources.filter((r) => r.experimentId === id);
-  if (attachedResources.length > 0) {
-    throw new ConflictError(
-      `Questo esperimento contiene ${attachedResources.length} risorse. ` +
-      'Rimuovile prima di eliminarlo.'
-    );
+    // Le risorse in bozza vengono rimosse insieme all'esperimento: sono
+  // documenti che esistono solo nella piattaforma, quindi non c'è nulla di
+  // irreversibile da proteggere. Chiedere all'utente di svuotare a mano un
+  // contenitore che sta per eliminare sarebbe un passaggio inutile.
+  //
+  // La cancellazione a cascata è sicura solo perché la funzione è già
+  // limitata alle bozze dal controllo sopra: su un esperimento materializzato
+  // ci sarebbero macchine allocate, e rimuoverne i documenti le lascerebbe
+  // attive senza più traccia nella piattaforma.
+  for (let i = mockResources.length - 1; i >= 0; i--) {
+    if (mockResources[i].experimentId === id) {
+      mockResources.splice(i, 1);
+    }
   }
 
   mockExperiments.splice(index, 1);

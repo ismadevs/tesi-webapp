@@ -31,4 +31,9 @@ router.put('/:id', resourceController.updateResource);
 // Non distrugge nulla su SLICES: sono due operazioni distinte.
 router.delete('/:id', resourceController.deleteResource);
 
+// POST /api/resources/:id/destroy - Libera la macchina su SLICES-RI.
+// Verbo POST e non DELETE perché non è la rimozione di una risorsa REST ma la
+// richiesta di un'azione sull'infrastruttura. Il documento resta.
+router.post('/:id/destroy', resourceController.destroyResource);
+
 export default router;

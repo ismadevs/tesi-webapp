@@ -7,7 +7,7 @@
 // contenitore, che determina se l'operazione e' ammessa.
 
 import { mockResources, mockExperiments } from '../models/mockDatabase.js';
-import Resource, { RESOURCE_STATUS } from '../models/Resource.js';
+import Resource, { RESOURCE_STATUS, LIVE_STATUSES } from '../models/Resource.js';
 import { EXPERIMENT_STATUS } from '../models/Experiment.js';
 import { infraForKind, findFlavor, findImage } from '../models/catalog.js';
 import { ValidationError, NotFoundError, ConflictError } from '../utils/errors.js';
@@ -134,11 +134,23 @@ const generateId = () => {
 
 // Arricchisce il documento con i dati di catalogo, cosi' l'interfaccia puo'
 // mostrare "tiny (1 vCPU, 1 GiB, 10 GB)" senza doverli cercare da sola.
-const withFlavorDetails = (resource) => ({
-  ...resource,
-  isDeployed: resource.remote.resourceId !== null,
-  flavorDetails: findFlavor(resource.spec.infra, resource.spec.flavor),
-});
+const withFlavorDetails = (resource) => {
+  // La scadenza è una condizione derivata, non uno stato memorizzato:
+  // nessuno la scrive, si verifica al passare del tempo. Calcolarla alla
+  // lettura evita di dover mantenere un processo che aggiorna i documenti.
+  const isExpired =
+    resource.status === RESOURCE_STATUS.DEPLOYED &&
+    resource.remote.expiresAt !== null &&
+    new Date(resource.remote.expiresAt) < new Date();
+
+  return {
+    ...resource,
+    isDeployed: resource.remote.resourceId !== null,
+    isExpired,
+    isLive: LIVE_STATUSES.includes(resource.status) && !isExpired,
+    flavorDetails: findFlavor(resource.spec.infra, resource.spec.flavor),
+  };
+};
 
 // ==========================================
 // OPERAZIONI
@@ -289,4 +301,51 @@ export const deleteResource = (id) => {
 
   mockResources.splice(index, 1);
   return true;
+};
+
+/**
+ * Richiede la distruzione di una risorsa allocata.
+ *
+ * ATTENZIONE ALLA SEMANTICA: qui si libera hardware reale su SLICES-RI,
+ * operazione irreversibile. È cosa diversa da deleteResource, che rimuove
+ * soltanto il documento di una bozza dalla piattaforma.
+ *
+ * Come per il deploy, la funzione non invoca la CLI: scrive lo stato
+ * DESTROY_REQUESTED e ritorna. Sarà l'orchestratore a eseguire. La coerenza
+ * fra le due operazioni non è formale: l'intenzione resta persistente e
+ * sopravvive a un backend fermo o a un token scaduto.
+ */
+export const requestDestroy = (id) => {
+  const index = mockResources.findIndex((res) => res.id === id);
+  if (index === -1) {
+    throw new NotFoundError(`Risorsa "${id}" non trovata.`);
+  }
+
+  const current = mockResources[index];
+
+  if (current.status === RESOURCE_STATUS.DRAFT) {
+    throw new ConflictError(
+      'Questa risorsa è ancora una bozza e non esiste su SLICES-RI. ' +
+      'Usa l\'eliminazione della bozza.'
+    );
+  }
+
+  if (current.status === RESOURCE_STATUS.DESTROYED) {
+    throw new ConflictError('Questa risorsa è già stata distrutta.');
+  }
+
+  if (!current.remote.resourceId) {
+    throw new ConflictError(
+      'Questa risorsa non è mai stata allocata su SLICES-RI.'
+    );
+  }
+
+  const updated = new Resource({
+    ...current,
+    status: RESOURCE_STATUS.DESTROY_REQUESTED,
+    updatedAt: new Date().toISOString(),
+  });
+
+  mockResources[index] = updated;
+  return withFlavorDetails(updated);
 };

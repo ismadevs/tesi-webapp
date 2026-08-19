@@ -6,9 +6,15 @@ import { X, Trash2 } from 'lucide-react';
 // Conferma l'eliminazione della SPECIFICA, non la distruzione di risorse su
 // SLICES: sono due operazioni con semantica diversa, e confonderle sarebbe un
 // errore di progetto. Per questo la modale compare solo sulle bozze, dove non
-// esiste nulla di allocato, e il testo lo dichiara esplicitamente.
+// esiste nulla di allocato.
+//
+// Le risorse in bozza collegate vengono rimosse insieme all'esperimento. Il
+// conteggio è dichiarato esplicitamente perché una cancellazione a cascata
+// silenziosa sorprenderebbe l'utente.
 
 export default function DeleteExperimentModal({ experiment, onClose, onConfirm }) {
+  const resourceCount = experiment.resourceCount ?? 0;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200"
@@ -38,6 +44,13 @@ export default function DeleteExperimentModal({ experiment, onClose, onConfirm }
             will be removed from the platform. Nothing is allocated on SLICES-RI,
             so no resources are affected.
           </p>
+
+          {resourceCount > 0 && (
+            <p className="text-sm text-gray-600 leading-relaxed mt-3">
+              Its {resourceCount} draft {resourceCount === 1 ? 'resource' : 'resources'}{' '}
+              will be removed as well.
+            </p>
+          )}
         </div>
 
         <div className="px-8 py-5 flex items-center justify-end gap-3 border-t border-gray-100">
