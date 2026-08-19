@@ -149,13 +149,6 @@ export default function ExperimentDetail({ experiment, onBack, onEdit, onDelete 
           <Database size={16} strokeWidth={2.5} />
           Resources — {experiment.resourceCount ?? 0}
         </h2>
-
-        <div className="flex items-center gap-3 text-gray-400 p-6 bg-gray-50 rounded-2xl border border-gray-100 border-dashed">
-          <Box size={20} />
-          <p className="text-sm font-medium">
-            No resources attached to this experiment yet.
-          </p>
-        </div>
       </section>
 
       {/* AZIONI: visibili solo sulle bozze */}

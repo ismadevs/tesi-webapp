@@ -14,15 +14,11 @@
 // il backend non lo gestisce e non lo conosce.
 
 import { execFile } from 'child_process';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 
-// Il nome del comando e' configurabile: se la CLI non e' nel PATH si puo'
-// indicare il percorso completo dell'eseguibile dentro l'ambiente virtuale.
-const SLICES_CLI = process.env.SLICES_CLI || 'slices';
-
-// Oltre questa soglia il comando viene interrotto. La creazione di un
-// esperimento richiede meno di un secondo, ma un valore esplicito evita che
-// un comando bloccato tenga appeso il processo indefinitamente.
-const COMMAND_TIMEOUT_MS = 60000;
+const COMMAND_TIMEOUT_MS = 120000;
 
 /**
  * Esegue un comando della CLI e restituisce il suo output.
@@ -34,10 +30,15 @@ const COMMAND_TIMEOUT_MS = 60000;
  */
 const runSlices = (args) =>
   new Promise((resolve, reject) => {
+    // Il nome del comando viene letto a ogni esecuzione e non all'import del
+    // modulo: in ES Modules gli import sono valutati prima del corpo di
+    // server.js, quindi al momento dell'import dotenv non ha ancora caricato
+    // il file .env e la variabile risulterebbe vuota.
+    const cli = process.env.SLICES_CLI || 'slices';
     const startedAt = Date.now();
 
     execFile(
-      SLICES_CLI,
+      cli,
       args,
       { timeout: COMMAND_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 },
       (err, stdout, stderr) => {
@@ -53,8 +54,8 @@ const runSlices = (args) =>
           }
 
           // La CLI scrive i messaggi di errore su stderr in forma leggibile:
-          // vanno propagati all'utente cosi' come sono, perche' spiegano il
-          // motivo reale del rifiuto (nome duplicato, quota esaurita, ecc.).
+          // vanno propagati cosi' come sono, perche' spiegano il motivo reale
+          // del rifiuto (nome duplicato, campo sconosciuto, quota esaurita).
           const message = (stderr || stdout || err.message).trim();
           return reject(new Error(message));
         }
@@ -64,15 +65,19 @@ const runSlices = (args) =>
     );
   });
 
+// ==========================================
+// ESPERIMENTI
+// ==========================================
+
 /**
- * Crea un esperimento su SLICES-RI e restituisce il suo identificatore.
+ * Crea un esperimento e restituisce il suo identificatore.
  *
  * NOTA SULL'ESTRAZIONE DELL'IDENTIFICATORE
  * `experiment create` non offre --format json, quindi l'ID va letto
  * dall'output testuale. La CLI adatta pero' l'output al contesto: quando lo
  * standard output non e' un terminale, come qui perche' il processo e' figlio
- * di Node, elimina la formattazione decorativa e stampa il solo identificatore.
- * In modalita' interattiva stampa invece "Experiment ID: exp_...".
+ * di Node, elimina la formattazione decorativa e stampa il solo
+ * identificatore. In modalita' interattiva stampa "Experiment ID: exp_...".
  * L'espressione regolare cerca il prefisso stabile "exp_" e copre entrambi i casi.
  */
 export const createExperiment = async ({ name, description, duration }) => {
@@ -80,9 +85,7 @@ export const createExperiment = async ({ name, description, duration }) => {
 
   // L'opzione viene omessa quando la descrizione e' vuota, invece di passare
   // una stringa vuota che la CLI registrerebbe come descrizione effettiva.
-  if (description) {
-    args.push('-D', description);
-  }
+  if (description) args.push('-D', description);
 
   const { stdout, elapsedMs } = await runSlices(args);
 
@@ -97,16 +100,7 @@ export const createExperiment = async ({ name, description, duration }) => {
 };
 
 /**
- * Elenco degli esperimenti presenti su SLICES.
- * Utile per verificare dall'esterno l'esito di una materializzazione.
- */
-export const listExperiments = async () => {
-  const { stdout } = await runSlices(['experiment', 'list']);
-  return stdout;
-};
-
-/**
- * Elimina un esperimento su SLICES.
+ * Elimina un esperimento.
  *
  * Il flag --force e' obbligatorio quando il comando viene invocato da un
  * programma: senza, la CLI chiede una conferma interattiva e il processo figlio
@@ -115,5 +109,112 @@ export const listExperiments = async () => {
  */
 export const deleteExperiment = async (nameOrId) => {
   await runSlices(['experiment', 'delete', nameOrId, '--force']);
+  return true;
+};
+
+// ==========================================
+// RISORSE - STRATEGIA A BLOCCO
+// ==========================================
+
+/**
+ * Crea piu' risorse con una sola invocazione, tramite specifica su file.
+ *
+ * E' la strategia preferibile quando applicabile: una sola invocazione della
+ * CLI invece di N, quindi un solo avvio dell'interprete Python e un solo
+ * giro di rete verso l'infrastruttura.
+ *
+ * LIMITE VERIFICATO SPERIMENTALMENTE
+ * La specifica JSON valida i campi e RIFIUTA `public_ipv4` con l'errore
+ * "Object contains unknown field `public_ipv4` - at `$.resources[0]`".
+ * Per questo l'orchestratore ricade sulla creazione singola quando almeno
+ * una risorsa richiede un indirizzo pubblico.
+ */
+export const createResourcesFromFile = async ({ experimentId, resources, duration }) => {
+  // Proiezione dal modello dati della piattaforma al formato atteso da SLICES.
+  // I nomi differiscono volutamente: la piattaforma usa `infra` perche' la CLI
+  // segnala `--site-id` come deprecato in favore di `--infra`, mentre il campo
+  // dentro il file si chiama ancora site_id.
+  const spec = {
+    resources: resources.map((r) => ({
+      site_id: r.spec.infra,
+      friendly_name: r.spec.name,
+      flavor: r.spec.flavor,
+      disk_image: r.spec.image,
+    })),
+  };
+
+  const specPath = path.join(os.tmpdir(), `slices-spec-${Date.now()}.json`);
+  fs.writeFileSync(specPath, JSON.stringify(spec, null, 2));
+
+  try {
+    const { stdout, elapsedMs } = await runSlices([
+      'bi', 'create-from-file', specPath,
+      '--experiment', experimentId,
+      '--duration', duration,
+    ]);
+
+    return { stdout, elapsedMs, invocations: 1 };
+  } finally {
+    // Il file temporaneo va rimosso in ogni caso, anche in caso di errore.
+    fs.unlinkSync(specPath);
+  }
+};
+
+// ==========================================
+// RISORSE - STRATEGIA SINGOLA
+// ==========================================
+
+/**
+ * Crea una singola risorsa.
+ *
+ * A differenza della specifica su file, questo comando accetta --public-ipv4.
+ *
+ * Nota la posizione di --infra: sta PRIMA del sottocomando `create`, perche'
+ * in SLICES l'infrastruttura non e' un parametro dell'operazione ma il
+ * contesto in cui l'operazione avviene, dichiarato a livello del gruppo
+ * `slices bi`. E' anche il motivo per cui il tipo di risorsa non esiste come
+ * parametro: viene derivato dal sito.
+ */
+export const createResource = async ({
+  experimentId, infra, name, flavor, image, duration, publicIpv4,
+}) => {
+  const args = [
+    'bi', '--infra', infra,
+    'create', name,
+    '--experiment', experimentId,
+    '--flavor', flavor,
+    '--image', image,
+    '--duration', duration,
+  ];
+
+  if (publicIpv4) args.push('--public-ipv4');
+
+  const { stdout, elapsedMs } = await runSlices(args);
+  return { stdout, elapsedMs };
+};
+
+/**
+ * Elenco delle risorse di un esperimento, in formato strutturato.
+ *
+ * L'esistenza di --format json e' cio' che rende praticabile l'integrazione:
+ * senza, si sarebbe costretti a interpretare tabelle formattate per la lettura
+ * umana, che e' fragile e si rompe al primo cambio di layout.
+ */
+export const listResources = async (experimentId) => {
+  const { stdout } = await runSlices([
+    'bi', 'list',
+    '--experiment', experimentId,
+    '--format', 'json',
+  ]);
+
+  return JSON.parse(stdout);
+};
+
+/**
+ * Distrugge una o piu' risorse. Anche qui --force e' necessario per evitare
+ * la richiesta di conferma interattiva.
+ */
+export const destroyResources = async (experimentId, names) => {
+  await runSlices(['bi', 'destroy', ...names, '--experiment', experimentId, '--force']);
   return true;
 };
