@@ -2,11 +2,11 @@
 // BUSINESS LOGIC LAYER (SERVICE) - RESOURCES
 // ==========================================
 // Regole del dominio per le risorse. La differenza rispetto agli esperimenti
-// e' che qui la validazione dipende da due cose esterne: il catalogo, che
+// è che qui la validazione dipende da due cose esterne: il catalogo, che
 // determina quali combinazioni sono possibili, e lo stato dell'esperimento
-// contenitore, che determina se l'operazione e' ammessa.
+// contenitore, che determina se l'operazione è ammessa.
 
-import { mockResources, mockExperiments } from '../models/mockDatabase.js';
+import * as db from './couchdb.js';
 import Resource, { RESOURCE_STATUS, LIVE_STATUSES } from '../models/Resource.js';
 import { EXPERIMENT_STATUS } from '../models/Experiment.js';
 import { infraForKind, findFlavor, findImage } from '../models/catalog.js';
@@ -23,13 +23,13 @@ const NAME_MAX_LENGTH = 60;
 //   - la risorsa deve appartenere a un esperimento esistente
 //   - l'esperimento deve essere ancora una bozza
 //
-// Il secondo e' il vincolo centrale: dopo la materializzazione le risorse
+// Il secondo è il vincolo centrale: dopo la materializzazione le risorse
 // sono state allocate su hardware reale, e aggiungerne o rimuoverne dal
 // documento non avrebbe alcun effetto sull'infrastruttura.
-const requireDraftExperiment = (experimentId) => {
-  const experiment = mockExperiments.find((exp) => exp.id === experimentId);
+const requireDraftExperiment = async (experimentId) => {
+  const experiment = await db.getDoc(experimentId);
 
-  if (!experiment) {
+  if (!experiment || experiment.type !== 'experiment') {
     throw new NotFoundError(`Esperimento "${experimentId}" non trovato.`);
   }
 
@@ -48,7 +48,7 @@ const requireDraftExperiment = (experimentId) => {
 // VALIDAZIONE DELLA SPECIFICA
 // ==========================================
 
-const validateName = (name, experimentId, currentId = null) => {
+const validateName = async (name, experimentId, currentId = null) => {
   if (!name) {
     throw new ValidationError('Il nome della risorsa è obbligatorio.', 'name');
   }
@@ -67,15 +67,20 @@ const validateName = (name, experimentId, currentId = null) => {
     );
   }
 
-  // L'unicita' e' limitata all'esperimento, non globale: il nome diventa il
+  // L'unicità è limitata all'esperimento, non globale: il nome diventa il
   // friendly_name della risorsa, e la piattaforma lo risolve nel contesto di
   // un singolo esperimento. Due esperimenti diversi possono contenere
   // entrambi una risorsa chiamata "vm-a".
-  const duplicate = mockResources.find(
-    (res) =>
-      res.experimentId === experimentId &&
-      res.spec.name === name &&
-      res.id !== currentId
+  //
+  // L'intervallo di chiavi copre tutti gli stati dell'esperimento indicato:
+  // l'oggetto vuoto ordina dopo qualunque stringa nella collazione di CouchDB.
+  const siblings = await db.queryDocs('resources', 'by_experiment', {
+    startkey: [experimentId],
+    endkey: [experimentId, {}],
+  });
+
+  const duplicate = siblings.find(
+    (res) => res.spec.name === name && res._id !== currentId
   );
 
   if (duplicate) {
@@ -86,7 +91,7 @@ const validateName = (name, experimentId, currentId = null) => {
 };
 
 // Il tipo viene dichiarato dall'utente, il sito ne viene derivato.
-// E' il percorso inverso rispetto a SLICES, che dal sito deriva il tipo:
+// È il percorso inverso rispetto a SLICES, che dal sito deriva il tipo:
 // l'interfaccia espone il concetto che l'utente ha in mente, e la traduzione
 // verso il vocabolario della piattaforma avviene qui.
 const resolveInfra = (kind) => {
@@ -132,24 +137,39 @@ const generateId = () => {
   return `res-${Date.now().toString(36)}-${suffix}`;
 };
 
-// Arricchisce il documento con i dati di catalogo, cosi' l'interfaccia puo'
-// mostrare "tiny (1 vCPU, 1 GiB, 10 GB)" senza doverli cercare da sola.
-const withFlavorDetails = (resource) => {
+// ==========================================
+// RAPPRESENTAZIONE VERSO L'API
+// ==========================================
+const toApi = (doc) => {
   // La scadenza è una condizione derivata, non uno stato memorizzato:
   // nessuno la scrive, si verifica al passare del tempo. Calcolarla alla
   // lettura evita di dover mantenere un processo che aggiorna i documenti.
+  //
+  // È anche la distinzione che l'interfaccia mostra: DESTROYED significa che
+  // qualcuno l'ha liberata, scaduta che è finito il tempo. Cause diverse.
   const isExpired =
-    resource.status === RESOURCE_STATUS.DEPLOYED &&
-    resource.remote.expiresAt !== null &&
-    new Date(resource.remote.expiresAt) < new Date();
+    doc.status === RESOURCE_STATUS.DEPLOYED &&
+    doc.remote.expiresAt !== null &&
+    new Date(doc.remote.expiresAt) < new Date();
 
   return {
-    ...resource,
-    isDeployed: resource.remote.resourceId !== null,
+    ...doc,
+    id: doc._id,
+    isDeployed: doc.remote.resourceId !== null,
     isExpired,
-    isLive: LIVE_STATUSES.includes(resource.status) && !isExpired,
-    flavorDetails: findFlavor(resource.spec.infra, resource.spec.flavor),
+    isLive: LIVE_STATUSES.includes(doc.status) && !isExpired,
+    flavorDetails: findFlavor(doc.spec.infra, doc.spec.flavor),
   };
+};
+
+const loadResource = async (id) => {
+  const doc = await db.getDoc(id);
+
+  if (!doc || doc.type !== 'resource') {
+    throw new NotFoundError(`Risorsa "${id}" non trovata.`);
+  }
+
+  return doc;
 };
 
 // ==========================================
@@ -163,30 +183,27 @@ const withFlavorDetails = (resource) => {
  * obbligatoriamente --experiment, quindi una vista globale delle risorse non
  * ha corrispondenza in SLICES e va costruita iterando sugli esperimenti.
  */
-export const getAllResources = (experimentId = null) => {
-  const filtered = experimentId
-    ? mockResources.filter((res) => res.experimentId === experimentId)
-    : [...mockResources];
+export const getAllResources = async (experimentId = null) => {
+  const docs = experimentId
+    ? await db.queryDocs('resources', 'by_experiment', {
+        startkey: [experimentId],
+        endkey: [experimentId, {}],
+      })
+    : await db.queryDocs('resources', 'by_status', {});
 
-  return filtered
+  return docs
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
-    .map(withFlavorDetails);
+    .map(toApi);
 };
 
-export const getResourceById = (id) => {
-  const resource = mockResources.find((res) => res.id === id);
-  if (!resource) {
-    throw new NotFoundError(`Risorsa "${id}" non trovata.`);
-  }
-  return withFlavorDetails(resource);
-};
+export const getResourceById = async (id) => toApi(await loadResource(id));
 
 /**
  * Crea una risorsa in stato DRAFT dentro un esperimento.
  * Nessuna interazione con SLICES: il documento esiste solo nella piattaforma
  * finché l'esperimento non viene materializzato.
  */
-export const createResource = (data = {}) => {
+export const createResource = async (data = {}) => {
   const experimentId = data.experimentId;
   const spec = data.spec || {};
 
@@ -196,7 +213,7 @@ export const createResource = (data = {}) => {
     );
   }
 
-  requireDraftExperiment(experimentId);
+  await requireDraftExperiment(experimentId);
 
   const name = (spec.name ?? '').trim();
   const kind = spec.kind ?? 'vm';
@@ -204,11 +221,11 @@ export const createResource = (data = {}) => {
   const flavor = spec.flavor ?? null;
   const image = spec.image ?? null;
 
-  validateName(name, experimentId);
+  await validateName(name, experimentId);
   validateCatalogChoice(infra, flavor, image);
 
   const resource = new Resource({
-    id: generateId(),
+    _id: generateId(),
     experimentId,
     spec: {
       name,
@@ -221,31 +238,24 @@ export const createResource = (data = {}) => {
     status: RESOURCE_STATUS.DRAFT,
   });
 
-  mockResources.push(resource);
-  return withFlavorDetails(resource);
+  const saved = await db.putDoc({ ...resource });
+  return toApi(saved);
 };
 
 /**
  * Aggiorna la specifica di una risorsa.
- * L'esperimento contenitore non e' modificabile: spostare una risorsa da un
- * esperimento all'altro non e' un'operazione che esiste in SLICES, perche'
+ * L'esperimento contenitore non è modificabile: spostare una risorsa da un
+ * esperimento all'altro non è un'operazione che esiste in SLICES, perché
  * fuori dal suo esperimento la risorsa non avrebbe esistenza.
  */
-export const updateResource = (id, data = {}) => {
-  const index = mockResources.findIndex((res) => res.id === id);
-  if (index === -1) {
-    throw new NotFoundError(`Risorsa "${id}" non trovata.`);
-  }
-
-  const current = mockResources[index];
+export const updateResource = async (id, data = {}) => {
+  const current = await loadResource(id);
 
   if (current.status !== RESOURCE_STATUS.DRAFT) {
-    throw new ConflictError(
-      'Solo le risorse in bozza possono essere modificate.'
-    );
+    throw new ConflictError('Solo le risorse in bozza possono essere modificate.');
   }
 
-  requireDraftExperiment(current.experimentId);
+  await requireDraftExperiment(current.experimentId);
 
   const spec = data.spec || {};
 
@@ -255,8 +265,7 @@ export const updateResource = (id, data = {}) => {
   const infra = resolveInfra(kind);
 
   // Cambiando tipo, flavor e immagine precedenti diventano invalidi perché i
-  // cataloghi dei due siti sono disgiunti. Vanno quindi rispecificati, e la
-  // validazione sotto lo impone.
+  // cataloghi dei due siti sono disgiunti. La validazione sotto lo impone.
   const flavor = spec.flavor !== undefined ? spec.flavor : current.spec.flavor;
   const image = spec.image !== undefined ? spec.image : current.spec.image;
 
@@ -264,7 +273,7 @@ export const updateResource = (id, data = {}) => {
     ? Boolean(spec.publicIpv4)
     : current.spec.publicIpv4;
 
-  validateName(name, current.experimentId, id);
+  await validateName(name, current.experimentId, id);
   validateCatalogChoice(infra, flavor, image);
 
   const updated = new Resource({
@@ -273,24 +282,18 @@ export const updateResource = (id, data = {}) => {
     updatedAt: new Date().toISOString(),
   });
 
-  mockResources[index] = updated;
-  return withFlavorDetails(updated);
+  return toApi(await db.putDoc({ ...updated }));
 };
 
 /**
  * Elimina la specifica di una risorsa.
  *
- * Come per gli esperimenti, la semantica e' quella di rimuovere il documento
+ * Come per gli esperimenti, la semantica è quella di rimuovere il documento
  * dalla piattaforma, non di distruggere hardware su SLICES. Per questo
- * l'operazione e' ammessa solo sulle bozze.
+ * l'operazione è ammessa solo sulle bozze.
  */
-export const deleteResource = (id) => {
-  const index = mockResources.findIndex((res) => res.id === id);
-  if (index === -1) {
-    throw new NotFoundError(`Risorsa "${id}" non trovata.`);
-  }
-
-  const current = mockResources[index];
+export const deleteResource = async (id) => {
+  const current = await loadResource(id);
 
   if (current.status !== RESOURCE_STATUS.DRAFT) {
     throw new ConflictError(
@@ -299,7 +302,7 @@ export const deleteResource = (id) => {
     );
   }
 
-  mockResources.splice(index, 1);
+  await db.deleteDoc(current._id, current._rev);
   return true;
 };
 
@@ -315,13 +318,8 @@ export const deleteResource = (id) => {
  * fra le due operazioni non è formale: l'intenzione resta persistente e
  * sopravvive a un backend fermo o a un token scaduto.
  */
-export const requestDestroy = (id) => {
-  const index = mockResources.findIndex((res) => res.id === id);
-  if (index === -1) {
-    throw new NotFoundError(`Risorsa "${id}" non trovata.`);
-  }
-
-  const current = mockResources[index];
+export const requestDestroy = async (id) => {
+  const current = await loadResource(id);
 
   if (current.status === RESOURCE_STATUS.DRAFT) {
     throw new ConflictError(
@@ -335,9 +333,7 @@ export const requestDestroy = (id) => {
   }
 
   if (!current.remote.resourceId) {
-    throw new ConflictError(
-      'Questa risorsa non è mai stata allocata su SLICES-RI.'
-    );
+    throw new ConflictError('Questa risorsa non è mai stata allocata su SLICES-RI.');
   }
 
   const updated = new Resource({
@@ -346,6 +342,5 @@ export const requestDestroy = (id) => {
     updatedAt: new Date().toISOString(),
   });
 
-  mockResources[index] = updated;
-  return withFlavorDetails(updated);
+  return toApi(await db.putDoc({ ...updated }));
 };

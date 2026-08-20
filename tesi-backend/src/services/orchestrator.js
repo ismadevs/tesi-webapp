@@ -9,22 +9,27 @@
 // sul documento. Questo componente raccoglie la richiesta e agisce.
 //
 // La separazione ha tre conseguenze utili:
-//   - la risposta HTTP e' immediata anche se il provisioning dura minuti
-//   - l'intenzione e' persistente: sopravvive alla chiusura del browser e al
-//     riavvio del backend, perche' e' un documento e non una chiamata
-//   - lo stato dell'operazione e' osservabile da chiunque, non solo da chi ha
+//   - la risposta HTTP è immediata anche se il provisioning dura minuti
+//   - l'intenzione è persistente: sopravvive alla chiusura del browser e al
+//     riavvio del backend, perché è un documento e non una chiamata
+//   - lo stato dell'operazione è osservabile da chiunque, non solo da chi ha
 //     premuto il pulsante
 //
-// Con CouchDB il ciclo a intervallo verra' sostituito dal changes feed, che
-// notifica i cambiamenti invece di richiedere interrogazioni periodiche.
-// La logica di materializzazione restera' identica.
+// SULLA PERSISTENZA
+// Con CouchDB ogni aggiornamento richiede la revisione corrente del
+// documento. L'orchestratore scrive più volte sullo stesso documento durante
+// un deploy, quindi ogni funzione di scrittura rilegge prima di scrivere:
+// tenere in memoria una revisione vecchia produrrebbe conflitti.
+//
+// Il polling a intervallo resta perché SLICES non offre notifiche. Quello
+// verso il database potrà invece essere sostituito dal changes feed.
 
-import { mockExperiments, mockResources } from '../models/mockDatabase.js';
+import * as db from './couchdb.js';
 import Experiment, { EXPERIMENT_STATUS } from '../models/Experiment.js';
 import Resource, { RESOURCE_STATUS } from '../models/Resource.js';
 import * as slicesService from './slicesService.js';
 
-// Ogni quanto cercare richieste di deploy.
+// Ogni quanto cercare richieste da elaborare.
 const POLL_INTERVAL_MS = 2000;
 
 // Ogni quanto interrogare lo stato delle risorse durante il provisioning.
@@ -33,54 +38,56 @@ const POLL_INTERVAL_MS = 2000;
 // comunque decine di secondi.
 const RESOURCE_POLL_MS = 5000;
 
-// Oltre questa soglia si rinuncia ad attendere. Serve a evitare che
-// l'orchestratore resti bloccato su una risorsa che non arrivera' mai.
+// Oltre questa soglia si rinuncia ad attendere.
 const PROVISIONING_TIMEOUT_MS = 600000;
 
 let isProcessing = false;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
 const log = (msg) => console.log(`[orchestrator] ${msg}`);
 
 // ==========================================
 // ACCESSO AI DOCUMENTI
 // ==========================================
-// Equivalgono alle view e alle scritture di CouchDB. Sostituendo queste
-// funzioni si passa alla persistenza reale senza toccare la logica sotto.
 
 const findPendingExperiments = () =>
-  mockExperiments.filter((exp) => exp.status === EXPERIMENT_STATUS.DEPLOY_REQUESTED);
+  db.queryDocs('experiments', 'by_status', { key: EXPERIMENT_STATUS.DEPLOY_REQUESTED });
+
+const findResourcesToDestroy = () =>
+  db.queryDocs('resources', 'by_status', { key: RESOURCE_STATUS.DESTROY_REQUESTED });
 
 const findDraftResources = (experimentId) =>
-  mockResources.filter(
-    (res) => res.experimentId === experimentId && res.status === RESOURCE_STATUS.DRAFT
-  );
+  db.queryDocs('resources', 'by_experiment', {
+    key: [experimentId, RESOURCE_STATUS.DRAFT],
+  });
 
-const updateExperiment = (id, changes) => {
-  const index = mockExperiments.findIndex((exp) => exp.id === id);
-  if (index === -1) return null;
+// Rilegge il documento prima di scrivere, così la revisione è sempre quella
+// corrente. Costa una richiesta in più, ma elimina alla radice i conflitti
+// dovuti a una revisione tenuta in memoria fra un aggiornamento e l'altro.
+const patchExperiment = async (id, changes) => {
+  const current = await db.getDoc(id);
+  if (!current) return null;
 
-  mockExperiments[index] = new Experiment({
-    ...mockExperiments[index],
+  const updated = new Experiment({
+    ...current,
     ...changes,
     updatedAt: new Date().toISOString(),
   });
 
-  return mockExperiments[index];
+  return db.putDoc({ ...updated });
 };
 
-const updateResource = (id, changes) => {
-  const index = mockResources.findIndex((res) => res.id === id);
-  if (index === -1) return null;
+const patchResource = async (id, changes) => {
+  const current = await db.getDoc(id);
+  if (!current) return null;
 
-  mockResources[index] = new Resource({
-    ...mockResources[index],
+  const updated = new Resource({
+    ...current,
     ...changes,
     updatedAt: new Date().toISOString(),
   });
 
-  return mockResources[index];
+  return db.putDoc({ ...updated });
 };
 
 // ==========================================
@@ -99,19 +106,17 @@ const durationToMs = (duration) => {
 // ==========================================
 // SCELTA DELLA STRATEGIA
 // ==========================================
-// Due interfacce della stessa API con capacita' diverse:
+// Due interfacce della stessa API con capacità diverse:
 //   - `create-from-file` crea tutte le risorse in una invocazione, ma la
 //     specifica JSON rifiuta il campo public_ipv4
 //   - `bi create` accetta --public-ipv4, ma va invocato una volta per risorsa
 //
 // La piattaforma compensa la discrepanza invece di ereditarne il limite:
-// sceglie il comando adatto in base a cio' che l'esperimento contiene.
+// sceglie il comando adatto in base a ciò che l'esperimento contiene.
 //
-// La regola e' tutto o niente per esperimento. Un approccio ibrido (blocco
-// per le risorse senza indirizzo pubblico, singole per le altre) sarebbe piu'
+// La regola è tutto o niente per esperimento. Un approccio ibrido sarebbe più
 // efficiente, ma introdurrebbe due superfici di errore nello stesso deploy e
-// renderebbe non confrontabili le misure di tempo. E' citato come possibile
-// ottimizzazione.
+// renderebbe non confrontabili le misure di tempo.
 const chooseStrategy = (resources) =>
   resources.some((r) => r.spec.publicIpv4) ? 'individual' : 'batch';
 
@@ -136,7 +141,7 @@ const createResourcesIndividually = async (slicesExperimentId, resources, durati
 
   const startedAt = Date.now();
 
-  // Sequenziale e non parallelo: su hardware condiviso e' preferibile non
+  // Sequenziale e non parallelo: su hardware condiviso è preferibile non
   // inviare richieste a raffica, e in caso di errore si sa esattamente quale
   // risorsa lo ha causato.
   for (const resource of resources) {
@@ -151,9 +156,9 @@ const createResourcesIndividually = async (slicesExperimentId, resources, durati
         publicIpv4: resource.spec.publicIpv4,
       });
     } catch (error) {
-      // La risorsa che ha fallito viene marcata individualmente, cosi'
-      // l'interfaccia mostra quale delle N non e' stata creata.
-      updateResource(resource.id, {
+      // La risorsa che ha fallito viene marcata individualmente, così
+      // l'interfaccia mostra quale delle N non è stata creata.
+      await patchResource(resource._id, {
         status: RESOURCE_STATUS.FAILED,
         remote: { ...resource.remote, failureReason: error.message },
       });
@@ -167,11 +172,11 @@ const createResourcesIndividually = async (slicesExperimentId, resources, durati
 // ==========================================
 // ATTESA DEL PROVISIONING
 // ==========================================
-// L'allocazione e' asincrona: il comando di creazione ritorna in pochi
+// L'allocazione è asincrona: il comando di creazione ritorna in pochi
 // secondi, ma le macchine attraversano una sequenza di stati prima di essere
 // utilizzabili (imaging, booting, initializing, up).
 //
-// Durante l'attesa gli stati intermedi vengono scritti nei documenti: e' cio'
+// Durante l'attesa gli stati intermedi vengono scritti nei documenti: è ciò
 // che alimenta la progressione a quattro tappe mostrata sulle card. Senza
 // queste scritture l'interfaccia resterebbe ferma per tutta la durata.
 const waitForResources = async (slicesExperimentId, resources) => {
@@ -184,17 +189,16 @@ const waitForResources = async (slicesExperimentId, resources) => {
     const remoteResources = await slicesService.listResources(slicesExperimentId);
 
     // Le risorse si riconciliano per friendly_name: la creazione a blocco non
-    // restituisce identificatori associabili, quindi il nome dichiarato e'
+    // restituisce identificatori associabili, quindi il nome dichiarato è
     // l'unico aggancio disponibile fra documento e risorsa remota.
     for (const resource of resources) {
       const remote = remoteResources.find((r) => r.friendly_name === resource.spec.name);
       if (!remote) continue;
 
-      updateResource(resource.id, {
+      await patchResource(resource._id, {
         remote: {
-          ...resource.remote,
           resourceId: remote.id,
-          // Lo stato reale e' minuscolo: la tabella della CLI lo mostra
+          // Lo stato reale è minuscolo: la tabella della CLI lo mostra
           // capitalizzato solo per presentazione.
           slicesStatus: remote.status,
           publicIpv4: remote.public_ipv4 ?? null,
@@ -252,26 +256,28 @@ const waitForResources = async (slicesExperimentId, resources) => {
 // ==========================================
 
 const deployExperiment = async (experiment) => {
-  const { id, spec } = experiment;
+  const { _id: id, spec } = experiment;
   const timings = {};
   const totalStart = Date.now();
 
-  // Controllo di idempotenza: se il documento ha gia' un identificatore
-  // remoto e' gia' stato materializzato, e la richiesta va ignorata.
+  // Controllo di idempotenza: se il documento ha già un identificatore
+  // remoto è già stato materializzato, e la richiesta va ignorata.
   if (experiment.remote.slicesExperimentId) {
     log(`"${spec.name}" risulta già materializzato, ignoro.`);
     return;
   }
 
-  const resources = findDraftResources(id);
+  const resources = await findDraftResources(id);
   log(`Materializzazione di "${spec.name}" con ${resources.length} risorse`);
 
   // Presa in carico. Le risorse passano direttamente a DEPLOYING senza
   // attraversare DEPLOY_REQUESTED: quello stato serve a distinguere una
   // richiesta in coda da una in lavorazione, ma per le risorse la richiesta
   // non arriva mai dall'interfaccia, le trascina l'esperimento.
-  updateExperiment(id, { status: EXPERIMENT_STATUS.DEPLOYING });
-  resources.forEach((r) => updateResource(r.id, { status: RESOURCE_STATUS.DEPLOYING }));
+  await patchExperiment(id, { status: EXPERIMENT_STATUS.DEPLOYING });
+  for (const resource of resources) {
+    await patchResource(resource._id, { status: RESOURCE_STATUS.DEPLOYING });
+  }
 
   try {
     // ---- 1. Esperimento ----
@@ -285,12 +291,12 @@ const deployExperiment = async (experiment) => {
     log(`Esperimento creato in ${exp.elapsedMs}ms → ${exp.slicesExperimentId}`);
 
     const createdAt = new Date();
-    updateExperiment(id, {
+    await patchExperiment(id, {
       remote: {
         slicesExperimentId: exp.slicesExperimentId,
         projectName: process.env.SLICES_PROJECT || 'tesi-unibo',
         createdAt: createdAt.toISOString(),
-        // Stima locale, corretta piu' avanti con il valore autorevole
+        // Stima locale, corretta più avanti con il valore autorevole
         // restituito dalle risorse.
         expiresAt: new Date(createdAt.getTime() + durationToMs(spec.duration)).toISOString(),
         deleted: false,
@@ -300,7 +306,7 @@ const deployExperiment = async (experiment) => {
     // ---- Caso senza risorse ----
     // Legittimo, non un errore: si ottiene un contenitore vuoto su SLICES.
     if (resources.length === 0) {
-      updateExperiment(id, { status: EXPERIMENT_STATUS.DEPLOYED, error: null });
+      await patchExperiment(id, { status: EXPERIMENT_STATUS.DEPLOYED, error: null });
       timings.total = Date.now() - totalStart;
       log(`"${spec.name}" completato senza risorse (${timings.total}ms)`);
       return;
@@ -325,14 +331,16 @@ const deployExperiment = async (experiment) => {
     timings.provisioning = elapsedMs;
 
     // ---- 4. Esito ----
-    resources.forEach((r) => updateResource(r.id, { status: RESOURCE_STATUS.DEPLOYED }));
+    for (const resource of resources) {
+      await patchResource(resource._id, { status: RESOURCE_STATUS.DEPLOYED });
+    }
 
-    // La scadenza autorevole e' quella riportata da SLICES sulle risorse, che
+    // La scadenza autorevole è quella riportata da SLICES sulle risorse, che
     // sostituisce la stima calcolata localmente al passo 1.
     const realExpiry = remoteResources[0]?.expires_at;
-    const current = mockExperiments.find((e) => e.id === id);
+    const current = await db.getDoc(id);
 
-    updateExperiment(id, {
+    await patchExperiment(id, {
       status: EXPERIMENT_STATUS.DEPLOYED,
       error: null,
       remote: {
@@ -351,60 +359,59 @@ const deployExperiment = async (experiment) => {
   } catch (error) {
     log(`"${spec.name}" fallito: ${error.message}`);
 
-    updateExperiment(id, {
+    await patchExperiment(id, {
       status: EXPERIMENT_STATUS.FAILED,
       error: error.message,
     });
 
-    // Le risorse rimaste in DEPLOYING non sono state create: quelle gia'
+    // Le risorse rimaste in DEPLOYING non sono state create: quelle già
     // marcate FAILED o DEPLOYED conservano il proprio stato.
     //
-    // NESSUN ROLLBACK: le risorse eventualmente gia' allocate restano su
-    // SLICES. Distruggerle automaticamente sarebbe piu' rischioso che
-    // lasciarle, perche' l'utente potrebbe volerle tenere, e la scadenza
+    // NESSUN ROLLBACK: le risorse eventualmente già allocate restano su
+    // SLICES. Distruggerle automaticamente sarebbe più rischioso che
+    // lasciarle, perché l'utente potrebbe volerle tenere, e la scadenza
     // automatica garantisce comunque che nulla resti indefinitamente.
-    // Lo stato risultante e' onesto: mostra la situazione reale invece di
+    // Lo stato risultante è onesto: mostra la situazione reale invece di
     // fingere coerenza.
-    mockResources
-      .filter((r) => r.experimentId === id && r.status === RESOURCE_STATUS.DEPLOYING)
-      .forEach((r) => updateResource(r.id, {
+    const stillDeploying = await db.queryDocs('resources', 'by_experiment', {
+      key: [id, RESOURCE_STATUS.DEPLOYING],
+    });
+
+    for (const resource of stillDeploying) {
+      await patchResource(resource._id, {
         status: RESOURCE_STATUS.FAILED,
-        remote: { ...r.remote, failureReason: error.message },
-      }));
+        remote: { ...resource.remote, failureReason: error.message },
+      });
+    }
   }
 };
 
 // ==========================================
 // DISTRUZIONE DELLE RISORSE
 // ==========================================
-const findResourcesToDestroy = () =>
-  mockResources.filter((res) => res.status === RESOURCE_STATUS.DESTROY_REQUESTED);
 
 const destroyResource = async (resource) => {
-  const experiment = mockExperiments.find((e) => e.id === resource.experimentId);
-  const slicesExperimentId = experiment?.remote.slicesExperimentId;
+  const experiment = await db.getDoc(resource.experimentId);
+  const slicesExperimentId = experiment?.remote?.slicesExperimentId;
 
   if (!slicesExperimentId) {
-    updateResource(resource.id, {
+    await patchResource(resource._id, {
       status: RESOURCE_STATUS.FAILED,
-      remote: {
-        ...resource.remote,
-        failureReason: 'Esperimento remoto non trovato.',
-      },
+      remote: { ...resource.remote, failureReason: 'Esperimento remoto non trovato.' },
     });
     return;
   }
 
   log(`Distruzione di "${resource.spec.name}"`);
-  updateResource(resource.id, { status: RESOURCE_STATUS.DESTROYING });
+  await patchResource(resource._id, { status: RESOURCE_STATUS.DESTROYING });
 
   try {
     await slicesService.destroyResources(slicesExperimentId, [resource.spec.name]);
 
     // Il documento resta: cambia stato e registra quando la macchina è stata
-    // liberata. `expiresAt` conserva la scadenza che avrebbe avuto, così la
+    // liberata. expiresAt conserva la scadenza che avrebbe avuto, così la
     // differenza fra i due campi racconta se è stata distrutta prima del tempo.
-    updateResource(resource.id, {
+    await patchResource(resource._id, {
       status: RESOURCE_STATUS.DESTROYED,
       remote: {
         ...resource.remote,
@@ -419,7 +426,7 @@ const destroyResource = async (resource) => {
 
     // Si torna a DEPLOYED e non a FAILED: la macchina è ancora allocata,
     // quindi lo stato deve dire la verità e l'utente può riprovare.
-    updateResource(resource.id, {
+    await patchResource(resource._id, {
       status: RESOURCE_STATUS.DEPLOYED,
       remote: { ...resource.remote, failureReason: error.message },
     });
@@ -435,8 +442,10 @@ const processPending = async () => {
 
   // Due tipi di lavoro da svolgere: esperimenti da materializzare e risorse
   // da liberare. Entrambi nascono da uno stato scritto dall'interfaccia.
-  const pending = findPendingExperiments();
-  const toDestroy = findResourcesToDestroy();
+  const [pending, toDestroy] = await Promise.all([
+    findPendingExperiments(),
+    findResourcesToDestroy(),
+  ]);
 
   if (pending.length === 0 && toDestroy.length === 0) return;
 
@@ -446,8 +455,6 @@ const processPending = async () => {
       await deployExperiment(experiment);
     }
 
-    // Le distruzioni dopo le materializzazioni: un deploy in corso ha la
-    // precedenza, e in ogni caso le due code sono indipendenti.
     for (const resource of toDestroy) {
       await destroyResource(resource);
     }
@@ -460,7 +467,7 @@ export const startOrchestrator = () => {
   console.log(`🔄 Orchestratore avviato (intervallo ${POLL_INTERVAL_MS}ms)`);
   setInterval(() => {
     processPending().catch((err) =>
-      console.error('[orchestrator] Errore non gestito nel ciclo:', err)
+      console.error('[orchestrator] Errore non gestito nel ciclo:', err.message)
     );
   }, POLL_INTERVAL_MS);
 };

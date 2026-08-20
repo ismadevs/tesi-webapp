@@ -83,7 +83,14 @@ export default class Resource {
     // ==========================================
     // 1. IDENTIFICATORI
     // ==========================================
-    this.id = data.id || null;
+    // In CouchDB l'identificatore si chiama _id e _rev è il numero di
+    // revisione usato per il controllo di concorrenza.
+    this._id = data._id || null;
+    this._rev = data._rev || undefined;
+
+    // Discriminante di tipo: tutti i documenti stanno nello stesso database
+    // senza tabelle, e le view lo usano per distinguerli.
+    this.type = 'resource';
 
     // Riferimento all'identificatore LOCALE dell'esperimento, non a quello
     // di SLICES. La relazione deve valere anche prima del deploy, quando

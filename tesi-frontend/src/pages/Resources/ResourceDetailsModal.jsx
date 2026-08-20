@@ -45,7 +45,7 @@ export default function ResourceDetailsModal({ resource, onClose }) {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]"
+        className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
 
@@ -70,7 +70,7 @@ export default function ResourceDetailsModal({ resource, onClose }) {
           </button>
         </div>
 
-        <div className="p-8 flex-1 overflow-y-auto space-y-8">
+        <div className="p-8 flex-1 space-y-8 overflow-y-auto no-scrollbar">
 
           {/* SPECIFICA: cosa l'utente ha dichiarato */}
           <section>

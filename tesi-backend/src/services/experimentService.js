@@ -1,11 +1,21 @@
 // ==========================================
 // BUSINESS LOGIC LAYER (SERVICE) - EXPERIMENTS
 // ==========================================
-// Contiene le regole del dominio: validazione, unicita' dei nomi, vincoli
+// Contiene le regole del dominio: validazione, unicità dei nomi, vincoli
 // sulle transizioni di stato. Non conosce HTTP e non formula risposte:
 // in caso di violazione lancia un errore tipizzato che il controller traduce.
+//
+// PERSISTENZA
+// I documenti vivono su CouchDB. Rispetto alla versione con array in memoria
+// cambiano tre cose:
+//   - tutte le funzioni sono asincrone, perché ogni accesso è una richiesta HTTP
+//   - l'identificatore si chiama _id e c'è un campo _rev per la concorrenza
+//   - i filtri sugli array diventano interrogazioni su view precostruite
+//
+// Il resto del backend non se ne accorge: controller, rotte e frontend
+// restano invariati. È il vantaggio della separazione in livelli.
 
-import { mockExperiments, mockResources } from '../models/mockDatabase.js';
+import * as db from './couchdb.js';
 import Experiment, { EXPERIMENT_STATUS } from '../models/Experiment.js';
 import Resource, { RESOURCE_STATUS } from '../models/Resource.js';
 import { ValidationError, NotFoundError, ConflictError } from '../utils/errors.js';
@@ -21,7 +31,7 @@ const NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const NAME_MAX_LENGTH = 60;
 
 // La durata segue il formato accettato da SLICES: un numero seguito
-// dall'unita' (minuti, ore, giorni, settimane). Esempi validi: 30m, 2h, 1d.
+// dall'unità (minuti, ore, giorni, settimane). Esempi validi: 30m, 2h, 1d.
 const DURATION_PATTERN = /^(\d+)([mhdw])$/;
 
 // Le risorse SLICES hanno un tetto di 2160 ore, pari a 90 giorni.
@@ -29,11 +39,24 @@ const MAX_DURATION_HOURS = 2160;
 
 const UNIT_TO_HOURS = { m: 1 / 60, h: 1, d: 24, w: 168 };
 
+// Stati in cui una risorsa esiste ancora o esisterà: sono quelli contati
+// nella tabella. Le distrutte restano come storico ma non vanno conteggiate,
+// altrimenti un esperimento le cui macchine sono state tutte liberate
+// continuerebbe a dichiararne tre.
+const COUNTABLE_RESOURCE_STATUSES = [
+  RESOURCE_STATUS.DRAFT,
+  RESOURCE_STATUS.DEPLOY_REQUESTED,
+  RESOURCE_STATUS.DEPLOYING,
+  RESOURCE_STATUS.DEPLOYED,
+  RESOURCE_STATUS.DESTROY_REQUESTED,
+  RESOURCE_STATUS.DESTROYING,
+];
+
 // ==========================================
 // VALIDAZIONE
 // ==========================================
 
-const validateName = (name, currentId = null) => {
+const validateName = async (name, currentId = null) => {
   if (!name) {
     throw new ValidationError('Il nome dell\'esperimento è obbligatorio.', 'name');
   }
@@ -56,9 +79,11 @@ const validateName = (name, currentId = null) => {
   // sperimentalmente, la ricreazione con lo stesso nome viene rifiutata con
   // "An active experiment with this name already exists". Controllarlo qui
   // evita che l'utente scopra il conflitto solo a materializzazione fallita.
-  const duplicate = mockExperiments.find(
-    (exp) => exp.spec.name === name && exp.id !== currentId
-  );
+  //
+  // La view by_name permette di interrogare per nome esatto: una richiesta
+  // mirata invece di caricare tutti gli esperimenti per cercarne uno.
+  const rows = await db.queryView('experiments', 'by_name', { key: name });
+  const duplicate = rows.find((row) => row.id !== currentId);
 
   if (duplicate) {
     throw new ConflictError(
@@ -99,34 +124,57 @@ const validateDuration = (duration) => {
 };
 
 // ==========================================
-// ARRICCHIMENTO PER IL LIVELLO DI PRESENTAZIONE
+// CONTEGGIO DELLE RISORSE
 // ==========================================
-// Il conteggio delle risorse non e' un campo memorizzato ma un dato derivato:
-// in SLICES la risorsa appartiene all'esperimento, quindi si contano le risorse
-// che vi fanno riferimento. Calcolarlo qui evita che il frontend debba
-// interrogare due endpoint per riempire una colonna della tabella.
-const LIVE = ['DEPLOY_REQUESTED', 'DEPLOYING', 'DEPLOYED', 'DESTROY_REQUESTED', 'DESTROYING'];
+// Il conteggio non è un campo memorizzato ma un dato derivato: in SLICES la
+// risorsa appartiene all'esperimento, quindi si contano quelle che vi fanno
+// riferimento.
+//
+// La view by_experiment emette come chiave [experimentId, status]. Leggendo
+// le sole chiavi, senza include_docs, si ottengono in UNA richiesta i
+// conteggi di tutti gli esperimenti con un payload minimo: non servono i
+// documenti, basta sapere quanti sono e in che stato.
+const loadResourceCounts = async () => {
+  const rows = await db.queryView('resources', 'by_experiment', {});
+  const counts = new Map();
 
-const withResourceCount = (experiment) => {
-  const all = mockResources.filter((r) => r.experimentId === experiment.id);
+  for (const row of rows) {
+    const [experimentId, status] = row.key;
+    if (!COUNTABLE_RESOURCE_STATUSES.includes(status)) continue;
+    counts.set(experimentId, (counts.get(experimentId) ?? 0) + 1);
+  }
 
-  return {
-    ...experiment,
-    isDeployed: experiment.remote.slicesExperimentId !== null,
-    // Le bozze contano come vive: esistono nella piattaforma e verranno
-    // materializzate. Le distrutte no: restano solo come storico.
-    resourceCount: all.filter(
-      (r) => r.status === 'DRAFT' || LIVE.includes(r.status)
-    ).length,
-    totalResourceCount: all.length,
-  };
+  return counts;
 };
 
-// Generazione dell'identificatore locale. Con CouchDB diventera' il campo _id;
-// il formato con prefisso rende leggibile il tipo di documento.
+// ==========================================
+// RAPPRESENTAZIONE VERSO L'API
+// ==========================================
+// Il frontend conosce il campo `id`, non `_id`. Tradurre qui evita di
+// propagare la convenzione di CouchDB fino all'interfaccia, e permetterebbe
+// di cambiare database senza toccare React.
+const toApi = (doc, resourceCount = 0) => ({
+  ...doc,
+  id: doc._id,
+  isDeployed: doc.remote.slicesExperimentId !== null,
+  resourceCount,
+});
+
 const generateId = () => {
   const suffix = Math.random().toString(36).slice(2, 8);
   return `exp-${Date.now().toString(36)}-${suffix}`;
+};
+
+// Lettura interna: restituisce il documento grezzo, con _rev, necessario per
+// qualunque aggiornamento successivo.
+const loadExperiment = async (id) => {
+  const doc = await db.getDoc(id);
+
+  if (!doc || doc.type !== 'experiment') {
+    throw new NotFoundError(`Esperimento "${id}" non trovato.`);
+  }
+
+  return doc;
 };
 
 // ==========================================
@@ -134,65 +182,64 @@ const generateId = () => {
 // ==========================================
 
 /**
- * Elenco completo degli esperimenti, dal piu' recente al piu' vecchio.
- * Include sia le bozze sia quelli materializzati: e' la differenza rispetto
+ * Elenco completo degli esperimenti, dal più recente al più vecchio.
+ * Include sia le bozze sia quelli materializzati: è la differenza rispetto
  * a `slices experiment list`, che conosce solo i secondi.
+ *
+ * L'ordinamento è fatto dalla view, che emette createdAt come chiave: con
+ * descending si scorre l'indice al contrario senza ordinare in memoria.
  */
-export const getAllExperiments = () => {
-  return [...mockExperiments]
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    .map(withResourceCount);
+export const getAllExperiments = async () => {
+  const [docs, counts] = await Promise.all([
+    db.queryDocs('experiments', 'all', { descending: true }),
+    loadResourceCounts(),
+  ]);
+
+  return docs.map((doc) => toApi(doc, counts.get(doc._id) ?? 0));
 };
 
 /**
- * Singolo esperimento per identificatore locale.
+ * Singolo esperimento per identificatore.
  */
-export const getExperimentById = (id) => {
-  const experiment = mockExperiments.find((exp) => exp.id === id);
-  if (!experiment) {
-    throw new NotFoundError(`Esperimento "${id}" non trovato.`);
-  }
-  return withResourceCount(experiment);
+export const getExperimentById = async (id) => {
+  const doc = await loadExperiment(id);
+  const counts = await loadResourceCounts();
+  return toApi(doc, counts.get(id) ?? 0);
 };
 
 /**
  * Crea un esperimento in stato DRAFT.
  * Nessuna interazione con SLICES: il documento esiste solo nella piattaforma
- * finche' l'utente non richiede esplicitamente la materializzazione.
+ * finché l'utente non richiede esplicitamente la materializzazione.
  */
-export const createExperiment = (data = {}) => {
+export const createExperiment = async (data = {}) => {
   const spec = data.spec || data;
 
   const name = (spec.name ?? '').trim();
   const description = (spec.description ?? '').trim();
   const duration = (spec.duration ?? '2h').trim();
 
-  validateName(name);
+  await validateName(name);
   validateDuration(duration);
 
   const experiment = new Experiment({
-    id: generateId(),
+    _id: generateId(),
     spec: { name, description, duration },
     status: EXPERIMENT_STATUS.DRAFT,
   });
 
-  mockExperiments.push(experiment);
-  return withResourceCount(experiment);
+  const saved = await db.putDoc({ ...experiment });
+  return toApi(saved, 0);
 };
 
 /**
  * Aggiorna la specifica di un esperimento.
- * Consentito solo in stato DRAFT: una specifica gia' applicata non puo' essere
- * modificata, perche' il cambiamento non avrebbe alcun effetto sulle risorse
- * gia' allocate su SLICES.
+ * Consentito solo in stato DRAFT: una specifica già applicata non può essere
+ * modificata, perché il cambiamento non avrebbe alcun effetto sulle risorse
+ * già allocate su SLICES.
  */
-export const updateExperiment = (id, data = {}) => {
-  const index = mockExperiments.findIndex((exp) => exp.id === id);
-  if (index === -1) {
-    throw new NotFoundError(`Esperimento "${id}" non trovato.`);
-  }
-
-  const current = mockExperiments[index];
+export const updateExperiment = async (id, data = {}) => {
+  const current = await loadExperiment(id);
 
   if (current.status !== EXPERIMENT_STATUS.DRAFT) {
     throw new ConflictError(
@@ -212,9 +259,9 @@ export const updateExperiment = (id, data = {}) => {
     ? spec.duration.trim()
     : current.spec.duration;
 
-  // L'identificatore corrente viene escluso dal controllo di unicita',
+  // L'identificatore corrente viene escluso dal controllo di unicità,
   // altrimenti un salvataggio senza modifiche al nome verrebbe rifiutato.
-  validateName(name, id);
+  await validateName(name, id);
   validateDuration(duration);
 
   const updated = new Experiment({
@@ -223,26 +270,22 @@ export const updateExperiment = (id, data = {}) => {
     updatedAt: new Date().toISOString(),
   });
 
-  mockExperiments[index] = updated;
-  return withResourceCount(updated);
+  const saved = await db.putDoc({ ...updated });
+  const counts = await loadResourceCounts();
+  return toApi(saved, counts.get(id) ?? 0);
 };
 
 /**
- * Elimina la specifica di un esperimento.
+ * Elimina la specifica di un esperimento e delle sue risorse in bozza.
  *
- * ATTENZIONE ALLA SEMANTICA: qui si elimina il documento dalla piattaforma,
+ * ATTENZIONE ALLA SEMANTICA: qui si eliminano documenti dalla piattaforma,
  * non si distrugge nulla su SLICES. Sono due operazioni distinte, e per questo
- * l'eliminazione e' ammessa solo sulle bozze: cancellare il documento di un
- * esperimento materializzato lascerebbe le macchine allocate senza piu' alcuna
- * traccia nella piattaforma, che e' la situazione peggiore possibile.
+ * l'eliminazione è ammessa solo sulle bozze: cancellare il documento di un
+ * esperimento materializzato lascerebbe le macchine allocate senza più alcuna
+ * traccia nella piattaforma, che è la situazione peggiore possibile.
  */
-export const deleteExperiment = (id) => {
-  const index = mockExperiments.findIndex((exp) => exp.id === id);
-  if (index === -1) {
-    throw new NotFoundError(`Esperimento "${id}" non trovato.`);
-  }
-
-  const current = mockExperiments[index];
+export const deleteExperiment = async (id) => {
+  const current = await loadExperiment(id);
 
   if (current.status !== EXPERIMENT_STATUS.DRAFT) {
     throw new ConflictError(
@@ -251,22 +294,27 @@ export const deleteExperiment = (id) => {
     );
   }
 
-    // Le risorse in bozza vengono rimosse insieme all'esperimento: sono
-  // documenti che esistono solo nella piattaforma, quindi non c'è nulla di
-  // irreversibile da proteggere. Chiedere all'utente di svuotare a mano un
-  // contenitore che sta per eliminare sarebbe un passaggio inutile.
+  // Cancellazione a cascata. È sicura solo perché il controllo sopra limita
+  // l'operazione alle bozze: sono documenti che esistono solo nella
+  // piattaforma, quindi non c'è nulla di irreversibile da proteggere.
   //
-  // La cancellazione a cascata è sicura solo perché la funzione è già
-  // limitata alle bozze dal controllo sopra: su un esperimento materializzato
-  // ci sarebbero macchine allocate, e rimuoverne i documenti le lascerebbe
-  // attive senza più traccia nella piattaforma.
-  for (let i = mockResources.length - 1; i >= 0; i--) {
-    if (mockResources[i].experimentId === id) {
-      mockResources.splice(i, 1);
-    }
+  // L'intervallo di chiavi copre tutti gli stati: l'oggetto vuoto ordina
+  // dopo qualunque stringa nella collazione di CouchDB.
+  const resources = await db.queryDocs('resources', 'by_experiment', {
+    startkey: [id],
+    endkey: [id, {}],
+  });
+
+  if (resources.length > 0) {
+    // In CouchDB si cancella marcando _deleted: il documento non sparisce
+    // davvero ma lascia una tombstone, meccanismo necessario perché la
+    // cancellazione si propaghi in caso di replica.
+    await db.bulkDocs(
+      resources.map((doc) => ({ _id: doc._id, _rev: doc._rev, _deleted: true }))
+    );
   }
 
-  mockExperiments.splice(index, 1);
+  await db.deleteDoc(current._id, current._rev);
   return true;
 };
 
@@ -274,27 +322,22 @@ export const deleteExperiment = (id) => {
  * Richiede la materializzazione su SLICES-RI.
  *
  * Non contatta l'infrastruttura: si limita a portare il documento in stato
- * DEPLOY_REQUESTED. Sara' il controller di orchestrazione a raccogliere la
- * richiesta e a invocare la CLI. La separazione e' voluta: l'intenzione e'
+ * DEPLOY_REQUESTED. Sarà il controller di orchestrazione a raccogliere la
+ * richiesta e a invocare la CLI. La separazione è voluta: l'intenzione è
  * persistente e sopravvive alla chiusura del browser o all'arresto del
  * controller, invece di essere una chiamata effimera.
  */
-export const requestDeploy = (id) => {
-  const index = mockExperiments.findIndex((exp) => exp.id === id);
-  if (index === -1) {
-    throw new NotFoundError(`Esperimento "${id}" non trovato.`);
-  }
+export const requestDeploy = async (id) => {
+  const current = await loadExperiment(id);
 
-  const current = mockExperiments[index];
-
-  // Controllo di idempotenza: se ha gia' un identificatore remoto,
-  // l'esperimento e' gia' stato materializzato.
+  // Controllo di idempotenza: se ha già un identificatore remoto,
+  // l'esperimento è già stato materializzato.
   if (current.remote.slicesExperimentId !== null) {
     throw new ConflictError('Questo esperimento è già stato materializzato su SLICES-RI.');
   }
 
-  // Da FAILED si puo' ritentare, da DRAFT si parte: gli altri stati indicano
-  // un deploy gia' in corso.
+  // Da FAILED si può ritentare, da DRAFT si parte: gli altri stati indicano
+  // un deploy già in corso.
   const deployable = [EXPERIMENT_STATUS.DRAFT, EXPERIMENT_STATUS.FAILED];
   if (!deployable.includes(current.status)) {
     throw new ConflictError(
@@ -309,33 +352,32 @@ export const requestDeploy = (id) => {
     updatedAt: new Date().toISOString(),
   });
 
-  mockExperiments[index] = updated;
-  return withResourceCount(updated);
+  const saved = await db.putDoc({ ...updated });
+  const counts = await loadResourceCounts();
+  return toApi(saved, counts.get(id) ?? 0);
 };
 
 /**
  * Duplica un esperimento e le sue risorse come nuove bozze.
  *
- * È l'operazione che rende la specifica effettivamente riutilizzabile:
- * un esperimento scaduto conserva la propria configurazione, e duplicarlo
+ * È l'operazione che rende la specifica effettivamente riutilizzabile: un
+ * esperimento scaduto conserva la propria configurazione, e duplicarlo
  * permette di rieseguirlo identico senza ricostruire nulla.
  *
  * Nessuna interazione con SLICES: si copiano documenti. Per questo è
  * consentita in qualunque stato, incluso FAILED, dove il fallimento più
  * frequente è proprio il nome già occupato.
  */
-export const duplicateExperiment = (id) => {
-  const source = mockExperiments.find((exp) => exp.id === id);
-  if (!source) {
-    throw new NotFoundError(`Esperimento "${id}" non trovato.`);
-  }
+export const duplicateExperiment = async (id) => {
+  const source = await loadExperiment(id);
 
   // Il nome deve essere univoco fra TUTTI gli esperimenti, anche quelli
-  // eliminati: su SLICES il nome resta riservato dopo la cancellazione.
-  // Si parte dalla radice, togliendo un eventuale suffisso di copia
-  // precedente, così duplicando una copia non si ottiene "x-copy-copy".
+  // eliminati. Si parte dalla radice, togliendo un eventuale suffisso di
+  // copia precedente, così duplicando una copia non si ottiene "x-copy-copy".
   const base = source.spec.name.replace(/-copy(-\d+)?$/, '').slice(0, 50);
-  const taken = new Set(mockExperiments.map((exp) => exp.spec.name));
+
+  const rows = await db.queryView('experiments', 'by_name', {});
+  const taken = new Set(rows.map((row) => row.key));
 
   let name = `${base}-copy`;
   let counter = 2;
@@ -345,7 +387,7 @@ export const duplicateExperiment = (id) => {
   }
 
   const experiment = new Experiment({
-    id: generateId(),
+    _id: generateId(),
     spec: {
       name,
       description: source.spec.description,
@@ -354,23 +396,30 @@ export const duplicateExperiment = (id) => {
     status: EXPERIMENT_STATUS.DRAFT,
   });
 
-  mockExperiments.push(experiment);
+  await db.putDoc({ ...experiment });
 
   // Si copiano tutte le risorse della specifica originale, comprese quelle
   // distrutte: la copia rappresenta la configurazione com'era stata
   // concepita, non lo stato in cui si trova adesso.
-  const sourceResources = mockResources.filter((res) => res.experimentId === id);
+  const sourceResources = await db.queryDocs('resources', 'by_experiment', {
+    startkey: [id],
+    endkey: [id, {}],
+  });
 
-  for (const resource of sourceResources) {
-    mockResources.push(new Resource({
-      id: `res-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-      experimentId: experiment.id,
-      // Solo la spec viene copiata: i campi remote appartengono a una
-      // macchina che è esistita, e la copia non ne ha ancora nessuna.
-      spec: { ...resource.spec },
-      status: RESOURCE_STATUS.DRAFT,
+  if (sourceResources.length > 0) {
+    const copies = sourceResources.map((resource) => ({
+      ...new Resource({
+        _id: `res-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+        experimentId: experiment._id,
+        // Solo la spec viene copiata: i campi remote appartengono a una
+        // macchina che è esistita, e la copia non ne ha ancora nessuna.
+        spec: { ...resource.spec },
+        status: RESOURCE_STATUS.DRAFT,
+      }),
     }));
+
+    await db.bulkDocs(copies);
   }
 
-  return withResourceCount(experiment);
+  return toApi(experiment, sourceResources.length);
 };

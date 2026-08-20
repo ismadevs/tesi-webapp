@@ -12,10 +12,25 @@ const handleError = (error, res) => {
   switch (error.name) {
     case 'ValidationError':
       return res.status(400).json({ message: error.message, field: error.field });
+
     case 'NotFoundError':
       return res.status(404).json({ message: error.message });
+
     case 'ConflictError':
       return res.status(409).json({ message: error.message });
+
+    case 'CouchConflictError':
+      // Conflitto di revisione: il documento è stato modificato mentre questa
+      // richiesta era in corso. Problema di concorrenza, non di dominio.
+      return res.status(409).json({
+        message: 'Il documento è stato modificato da un\'altra operazione. Ricarica e riprova.',
+      });
+
+    case 'DatabaseError':
+      // 503: indisponibilità del sistema, non un problema della richiesta.
+      console.error('Errore del database:', error.message);
+      return res.status(503).json({ message: error.message });
+
     default:
       console.error('Errore non gestito:', error);
       return res.status(500).json({ message: 'Errore interno del server.' });
@@ -26,10 +41,10 @@ const handleError = (error, res) => {
 // Il filtro è opzionale nell'API ma di fatto sempre usato dall'interfaccia:
 // la sezione Resources è ambita a un esperimento selezionato, coerentemente
 // con il fatto che `slices bi list` richiede obbligatoriamente --experiment.
-export const getResources = (req, res) => {
+export const getResources = async (req, res) => {
   try {
     const { experimentId } = req.query;
-    res.status(200).json(resourceService.getAllResources(experimentId || null));
+    res.status(200).json(await resourceService.getAllResources(experimentId || null));
   } catch (error) {
     handleError(error, res);
   }
@@ -39,6 +54,9 @@ export const getResources = (req, res) => {
 // Restituisce in un colpo solo infrastrutture, flavor e immagini. La cascata
 // dei menu (il sito filtra flavor e immagini) viene poi applicata lato client
 // senza ulteriori richieste.
+//
+// Non tocca il database: il catalogo è una copia locale di ciò che
+// l'infrastruttura offre, quindi resta sincrono.
 export const getResourceCatalog = (req, res) => {
   try {
     res.status(200).json(getCatalog());
@@ -48,36 +66,36 @@ export const getResourceCatalog = (req, res) => {
 };
 
 // GET /api/resources/:id
-export const getResource = (req, res) => {
+export const getResource = async (req, res) => {
   try {
-    res.status(200).json(resourceService.getResourceById(req.params.id));
+    res.status(200).json(await resourceService.getResourceById(req.params.id));
   } catch (error) {
     handleError(error, res);
   }
 };
 
 // POST /api/resources
-export const createResource = (req, res) => {
+export const createResource = async (req, res) => {
   try {
-    res.status(201).json(resourceService.createResource(req.body));
+    res.status(201).json(await resourceService.createResource(req.body));
   } catch (error) {
     handleError(error, res);
   }
 };
 
 // PUT /api/resources/:id
-export const updateResource = (req, res) => {
+export const updateResource = async (req, res) => {
   try {
-    res.status(200).json(resourceService.updateResource(req.params.id, req.body));
+    res.status(200).json(await resourceService.updateResource(req.params.id, req.body));
   } catch (error) {
     handleError(error, res);
   }
 };
 
 // DELETE /api/resources/:id
-export const deleteResource = (req, res) => {
+export const deleteResource = async (req, res) => {
   try {
-    resourceService.deleteResource(req.params.id);
+    await resourceService.deleteResource(req.params.id);
     res.status(204).send();
   } catch (error) {
     handleError(error, res);
@@ -87,9 +105,9 @@ export const deleteResource = (req, res) => {
 // POST /api/resources/:id/destroy
 // Non distrugge nulla direttamente: porta il documento in DESTROY_REQUESTED
 // e risponde 202. Sarà l'orchestratore a invocare la CLI.
-export const destroyResource = (req, res) => {
+export const destroyResource = async (req, res) => {
   try {
-    res.status(202).json(resourceService.requestDestroy(req.params.id));
+    res.status(202).json(await resourceService.requestDestroy(req.params.id));
   } catch (error) {
     handleError(error, res);
   }

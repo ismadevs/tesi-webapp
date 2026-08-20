@@ -40,14 +40,23 @@ export const isEditable = (experiment) =>
 export default class Experiment {
   constructor(data = {}) {
     // ==========================================
-    // 1. IDENTIFICATORE LOCALE
+    // 1. IDENTIFICATORI
     // ==========================================
-    // Identificatore generato dalla piattaforma, immutabile. E' distinto
-    // dall'identificatore SLICES (in remote.slicesExperimentId) perche' il
-    // documento esiste PRIMA che l'infrastruttura ne assegni uno.
-    // Le relazioni interne (risorse -> esperimento) usano sempre questo,
-    // cosi' restano valide sia prima sia dopo il deploy.
-    this.id = data.id || null;
+    // In CouchDB l'identificatore si chiama _id ed è immutabile. È generato
+    // dalla piattaforma alla creazione della bozza, quindi esiste PRIMA che
+    // SLICES ne assegni uno: sono due identificatori distinti, e quello
+    // remoto vive in remote.slicesExperimentId.
+    this._id = data._id || null;
+
+    // Numero di revisione, gestito da CouchDB. Ogni aggiornamento deve
+    // dichiarare su quale revisione si basa: se nel frattempo qualcun altro
+    // ha scritto, la richiesta viene respinta con un conflitto.
+    // È null solo per un documento non ancora salvato.
+    this._rev = data._rev || undefined;
+
+    // Discriminante di tipo. In CouchDB tutti i documenti stanno nello stesso
+    // database senza tabelle, quindi le view lo usano per distinguerli.
+    this.type = 'experiment';
 
     // ==========================================
     // 2. SPECIFICA (dichiarata dall'utente)

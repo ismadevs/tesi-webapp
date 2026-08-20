@@ -22,7 +22,18 @@ import resourceRoutes from './src/routes/resourceRoutes.js';
 // IMPORTA LE ROTTE DEGLI ESPERIMENTI
 import experimentRoutes from './src/routes/experimentRoutes.js';
 
+// Importa il controller di orchestrazione.
+// È un processo che non risponde a richieste HTTP: osserva i documenti in
+// attesa di materializzazione e li porta su SLICES-RI invocando la CLI.
+// Viene avviato insieme al server e resta in esecuzione in sottofondo.
 import { startOrchestrator } from './src/services/orchestrator.js';
+
+// Importa il layer di persistenza su CouchDB.
+// checkConnection verifica all'avvio che il database sia raggiungibile ed
+// esista, così un errore di configurazione emerge subito invece di comparire
+// alla prima richiesta dell'utente. DB_INFO contiene indirizzo e nome del
+// database, usati solo per il messaggio informativo in console.
+import { checkConnection, DB_INFO } from './src/services/couchdb.js';
 
 // Carica tutte le variabili presenti nel file .env
 // all'interno dell'oggetto process.env.
@@ -135,10 +146,15 @@ app.use((err, req, res, next) => {
 // ===============================
 
 // Avvia il server HTTP sulla porta specificata.
-app.listen(PORT, () => {
-
-    // Messaggio visualizzato nel terminale
-    // quando il server è pronto a ricevere richieste.
+app.listen(PORT, async () => {
     console.log(`🚀 Server in esecuzione sulla porta ${PORT}`);
+
+    try {
+        await checkConnection();
+        console.log(`🗄️  CouchDB collegato: ${DB_INFO.url}/${DB_INFO.name}`);
+    } catch (error) {
+        console.error(`❌ ${error.message}`);
+    }
+
     startOrchestrator();
 });
