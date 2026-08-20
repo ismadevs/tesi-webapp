@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Database, Pencil, Trash2, Box, Clock, FileText, AlertCircle } from 'lucide-react';
-
+import { ArrowLeft, Database, Pencil, Trash2, Box, Clock, FileText, AlertCircle, Copy } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import DeleteExperimentModal from './DeleteExperimentModal';
 import { STATUS, isEditable, formatTimeLeft, isExpiringSoon, formatDateTime } from './experimentStatus';
@@ -14,7 +13,7 @@ import { STATUS, isEditable, formatTimeLeft, isExpiringSoon, formatDateTime } fr
 // Il contrasto fra le due viste, prima e dopo la materializzazione, e' cio' che
 // rende visibile la separazione fra specifica e infrastruttura.
 
-export default function ExperimentDetail({ experiment, onBack, onEdit, onDelete }) {
+export default function ExperimentDetail({ experiment, onBack, onEdit, onDelete, onDuplicate }) {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   const editable = isEditable(experiment);
@@ -77,7 +76,7 @@ export default function ExperimentDetail({ experiment, onBack, onEdit, onDelete 
   );
 
   return (
-    <div className="flex flex-col h-full animate-in fade-in duration-300">
+    <div className="flex flex-col h-full animate-in fade-in duration-300 overflow-y-auto no-scrollbar">
 
       {/* NAVIGAZIONE */}
       <div className="mb-8">
@@ -143,34 +142,39 @@ export default function ExperimentDetail({ experiment, onBack, onEdit, onDelete 
         </section>
       )}
 
-      {/* RISORSE: verranno collegate quando la sezione Resources sara' pronta */}
-      <section className="flex-1 mb-10">
-        <h2 className="text-sm font-bold text-black uppercase tracking-widest mb-6 flex items-center gap-2">
-          <Database size={16} strokeWidth={2.5} />
-          Resources — {experiment.resourceCount ?? 0}
-        </h2>
-      </section>
+      {/* AZIONI */}
+      {/* Duplicate è l'unica azione sempre disponibile: non tocca
+          l'infrastruttura, copia soltanto la specifica. È ciò che rende
+          riutilizzabile un esperimento già materializzato o scaduto.*/}
+      <div className="pt-8 mt-auto flex justify-end items-center gap-3 border-t border-gray-100">
+        <button
+          onClick={() => onDuplicate(experiment.id)}
+          className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-300 flex items-center gap-2 bg-white text-black border border-gray-200 hover:bg-gray-50 cursor-pointer"
+        >
+          <Copy size={16} />
+          Duplicate
+        </button>
 
-      {/* AZIONI: visibili solo sulle bozze */}
-      {editable && (
-        <div className="pt-8 mt-auto flex justify-end items-center gap-3 border-t border-gray-100">
-          <button
-            onClick={() => onEdit(experiment)}
-            className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-300 flex items-center gap-2 bg-white text-black border border-gray-200 hover:bg-gray-50 cursor-pointer"
-          >
-            <Pencil size={16} />
-            Edit
-          </button>
+        {editable && (
+          <>
+            <button
+              onClick={() => onEdit(experiment)}
+              className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-300 flex items-center gap-2 bg-white text-black border border-gray-200 hover:bg-gray-50 cursor-pointer"
+            >
+              <Pencil size={16} />
+              Edit
+            </button>
 
-          <button
-            onClick={() => setIsDeleteModalOpen(true)}
-            className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-300 flex items-center gap-2 bg-white text-black border border-gray-200 hover:bg-rose-500 hover:text-white hover:border-rose-500 cursor-pointer"
-          >
-            <Trash2 size={16} />
-            Delete draft
-          </button>
-        </div>
-      )}
+            <button
+              onClick={() => setIsDeleteModalOpen(true)}
+              className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-300 flex items-center gap-2 bg-white text-black border border-gray-200 hover:bg-rose-500 hover:text-white hover:border-rose-500 cursor-pointer"
+            >
+              <Trash2 size={16} />
+              Delete draft
+            </button>
+          </>
+        )}
+      </div>
 
       {isDeleteModalOpen && (
         <DeleteExperimentModal

@@ -123,6 +123,30 @@ export default function ExperimentsPage() {
   };
 
   // ==========================================
+  // DUPLICAZIONE
+  // ==========================================
+  // La duplicazione produce sempre una bozza, qualunque fosse lo stato
+  // dell'originale. Al termine si apre il dettaglio della copia, così
+  // l'utente può rinominarla subito.
+  const handleDuplicate = async (id) => {
+    try {
+      const response = await fetch(`${API_URL}/${id}/duplicate`, { method: 'POST' });
+
+      if (!response.ok) {
+        toast.error(await readError(response, 'Unable to duplicate the experiment.'));
+        return;
+      }
+
+      const copy = await response.json();
+      setExperiments((prev) => [copy, ...prev]);
+      setSelectedId(copy.id);
+      toast.success(`Created draft "${copy.spec.name}".`);
+    } catch {
+      toast.error('Cannot reach the server.');
+    }
+  };
+
+  // ==========================================
   // RENDERING
   // ==========================================
   const renderContent = () => {
@@ -150,6 +174,7 @@ export default function ExperimentsPage() {
           onBack={() => setSelectedId(null)}
           onEdit={(exp) => setFormTarget(exp)}
           onDelete={handleDelete}
+          onDuplicate={handleDuplicate}
         />
       );
     }

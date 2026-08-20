@@ -7,6 +7,7 @@
 
 import { mockExperiments, mockResources } from '../models/mockDatabase.js';
 import Experiment, { EXPERIMENT_STATUS } from '../models/Experiment.js';
+import Resource, { RESOURCE_STATUS } from '../models/Resource.js';
 import { ValidationError, NotFoundError, ConflictError } from '../utils/errors.js';
 
 // ==========================================
@@ -310,4 +311,66 @@ export const requestDeploy = (id) => {
 
   mockExperiments[index] = updated;
   return withResourceCount(updated);
+};
+
+/**
+ * Duplica un esperimento e le sue risorse come nuove bozze.
+ *
+ * È l'operazione che rende la specifica effettivamente riutilizzabile:
+ * un esperimento scaduto conserva la propria configurazione, e duplicarlo
+ * permette di rieseguirlo identico senza ricostruire nulla.
+ *
+ * Nessuna interazione con SLICES: si copiano documenti. Per questo è
+ * consentita in qualunque stato, incluso FAILED, dove il fallimento più
+ * frequente è proprio il nome già occupato.
+ */
+export const duplicateExperiment = (id) => {
+  const source = mockExperiments.find((exp) => exp.id === id);
+  if (!source) {
+    throw new NotFoundError(`Esperimento "${id}" non trovato.`);
+  }
+
+  // Il nome deve essere univoco fra TUTTI gli esperimenti, anche quelli
+  // eliminati: su SLICES il nome resta riservato dopo la cancellazione.
+  // Si parte dalla radice, togliendo un eventuale suffisso di copia
+  // precedente, così duplicando una copia non si ottiene "x-copy-copy".
+  const base = source.spec.name.replace(/-copy(-\d+)?$/, '').slice(0, 50);
+  const taken = new Set(mockExperiments.map((exp) => exp.spec.name));
+
+  let name = `${base}-copy`;
+  let counter = 2;
+  while (taken.has(name)) {
+    name = `${base}-copy-${counter}`;
+    counter++;
+  }
+
+  const experiment = new Experiment({
+    id: generateId(),
+    spec: {
+      name,
+      description: source.spec.description,
+      duration: source.spec.duration,
+    },
+    status: EXPERIMENT_STATUS.DRAFT,
+  });
+
+  mockExperiments.push(experiment);
+
+  // Si copiano tutte le risorse della specifica originale, comprese quelle
+  // distrutte: la copia rappresenta la configurazione com'era stata
+  // concepita, non lo stato in cui si trova adesso.
+  const sourceResources = mockResources.filter((res) => res.experimentId === id);
+
+  for (const resource of sourceResources) {
+    mockResources.push(new Resource({
+      id: `res-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      experimentId: experiment.id,
+      // Solo la spec viene copiata: i campi remote appartengono a una
+      // macchina che è esistita, e la copia non ne ha ancora nessuna.
+      spec: { ...resource.spec },
+      status: RESOURCE_STATUS.DRAFT,
+    }));
+  }
+
+  return withResourceCount(experiment);
 };

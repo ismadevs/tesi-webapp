@@ -83,6 +83,15 @@ export const deleteExperiment = (req, res) => {
   }
 };
 
+// POST /api/experiments/:id/duplicate
+export const duplicateExperiment = (req, res) => {
+  try {
+    res.status(201).json(experimentService.duplicateExperiment(req.params.id));
+  } catch (error) {
+    handleError(error, res);
+  }
+};
+
 // POST /api/experiments/:id/deploy
 // Non materializza nulla: porta il documento in DEPLOY_REQUESTED e restituisce
 // subito. Sara' il controller di orchestrazione a invocare la CLI di SLICES.
