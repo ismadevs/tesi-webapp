@@ -116,6 +116,19 @@ export default function ResourcesPage() {
     }
   };
 
+  // Ricarica gli esperimenti in sottofondo. Serve perché selectedExperiment
+  // resterebbe altrimenti congelato al valore del caricamento iniziale, e il
+  // banner verde non comparirebbe al termine del deploy.
+  const refreshExperiments = async () => {
+    try {
+      const response = await fetch(`${API}/experiments`);
+      if (response.ok) setExperiments(await response.json());
+    } catch {
+      // Silenzioso: è un aggiornamento di sfondo, un fallimento temporaneo
+      // non deve disturbare l'utente con un messaggio.
+    }
+  };
+
   useEffect(() => {
     fetchResources(selectedId);
   }, [selectedId]);
@@ -129,13 +142,26 @@ export default function ResourcesPage() {
   //
   // Con CouchDB questo blocco sparirà: il changes feed notifica i cambiamenti
   // invece di richiedere interrogazioni periodiche.
-  useEffect(() => {
-    const hasPending = resources.some((r) => TRANSIENT.includes(r.status));
-    if (!hasPending) return;
+    useEffect(() => {
+      // Il polling deve attivarsi anche quando è l'ESPERIMENTO a muoversi:
+      // le risorse restano DRAFT finché l'orchestratore non le prende in
+      // carico, quindi guardare solo loro lascerebbe la pagina ferma per i
+      // primi secondi dopo il deploy.
+      const experimentPending =
+        selectedExperiment && TRANSIENT.includes(selectedExperiment.status);
+      const resourcesPending = resources.some((r) =>
+        TRANSIENT.includes(r.status),
+      );
 
-    const timer = setInterval(() => fetchResources(selectedId), 3000);
-    return () => clearInterval(timer);
-  }, [resources, selectedId]);
+      if (!experimentPending && !resourcesPending) return;
+
+      const timer = setInterval(() => {
+        fetchResources(selectedId);
+        refreshExperiments();
+      }, 3000);
+
+      return () => clearInterval(timer);
+    }, [resources, selectedExperiment, selectedId]);
 
   // ==========================================
   // MUTAZIONI
