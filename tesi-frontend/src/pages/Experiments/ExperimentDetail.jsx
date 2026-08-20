@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ArrowLeft, Database, Pencil, Trash2, Box, Clock, FileText, AlertCircle, Copy } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, ArrowLeft, Database, Pencil, Trash2, Box, Clock, FileText, AlertCircle, Copy } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import DeleteExperimentModal from './DeleteExperimentModal';
 import { STATUS, isEditable, formatTimeLeft, isExpiringSoon, formatDateTime } from './experimentStatus';
@@ -141,6 +142,38 @@ export default function ExperimentDetail({ experiment, onBack, onEdit, onDelete,
           </div>
         </section>
       )}
+
+            {/* RISORSE
+          Le card e le azioni vivono nella sezione Resources: qui basta il
+          conteggio e un collegamento diretto, così non esistono due viste
+          della stessa cosa da tenere allineate. */}
+      <section className="flex-1 mb-10">
+        <h2 className="text-sm font-bold text-black uppercase tracking-widest mb-6 flex items-center gap-2">
+          <Database size={16} strokeWidth={2.5} />
+          Resources
+        </h2>
+
+        <Link
+          to={`/resources?experiment=${experiment.id}`}
+          className="flex items-center justify-between p-6 bg-white border border-gray-200 rounded-2xl hover:border-gray-300 hover:shadow-sm transition-all group"
+        >
+          <div>
+            <p className="text-2xl font-extrabold text-gray-900 tracking-tight">
+              {experiment.resourceCount ?? 0}
+            </p>
+            <p className="text-sm text-gray-500 mt-1">
+              {editable
+                ? 'Add or edit the machines this experiment will allocate'
+                : 'Machines allocated by this experiment'}
+            </p>
+          </div>
+
+          <span className="flex items-center gap-2 text-sm font-bold text-black">
+            Open
+            <ArrowRight size={16} strokeWidth={2.5} />
+          </span>
+        </Link>
+      </section>
 
       {/* AZIONI */}
       {/* Duplicate è l'unica azione sempre disponibile: non tocca

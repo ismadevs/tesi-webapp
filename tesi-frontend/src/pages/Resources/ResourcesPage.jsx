@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { Plus, ChevronDown, Boxes, Loader2, ArrowRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import PageLayout from '../../components/PageLayout';
 import StatusBadge from '../Experiments/StatusBadge';
@@ -51,6 +51,12 @@ export default function ResourcesPage() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [destroyTarget, setDestroyTarget] = useState(null);
 
+  // Permette di arrivare qui con un esperimento già scelto, per esempio dal
+  // dettaglio dell'esperimento. Il parametro nell'URL rende il collegamento
+  // condivisibile e sopravvive a un ricaricamento della pagina.
+  const [searchParams] = useSearchParams();
+  const requestedExperimentId = searchParams.get('experiment');
+
   const selectedExperiment = experiments.find((e) => e.id === selectedId) ?? null;
 
   // Le risorse sono modificabili solo finché l'esperimento contenitore è in
@@ -83,11 +89,12 @@ export default function ResourcesPage() {
         setExperiments(experimentList);
         setCatalog(await catRes.json());
 
-        // Preseleziona la prima bozza, che è il caso d'uso più frequente:
-        // si entra in questa sezione per aggiungere risorse a un esperimento
-        // che si sta ancora componendo.
+        // Un esperimento indicato nell'URL ha la precedenza. Se non c'è, si
+        // preseleziona la prima bozza: è il caso d'uso più frequente, perché
+        // si entra qui per aggiungere risorse a un esperimento in composizione.
+        const requested = experimentList.find((e) => e.id === requestedExperimentId);
         const firstDraft = experimentList.find((e) => e.status === STATUS.DRAFT);
-        setSelectedId((firstDraft ?? experimentList[0])?.id ?? null);
+        setSelectedId((requested ?? firstDraft ?? experimentList[0])?.id ?? null);
       } catch {
         toast.error('Cannot reach the server.');
       } finally {
