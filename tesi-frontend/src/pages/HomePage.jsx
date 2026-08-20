@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, DatabasePlus, CloudUpload, Clock, ArrowRight } from 'lucide-react';
+import { FileText, DatabasePlus, CloudUpload, Clock, ArrowRight, ArrowUpRight } from 'lucide-react';
 
 import PageLayout from '../components/PageLayout';
 import { STATUS, formatTimeLeft, isExpiringSoon } from './Experiments/experimentStatus';
@@ -76,54 +76,93 @@ export default function HomePage() {
   // COMPONENTI INTERNI
   // ==========================================
 
+  // Il numero del passo è grande e in filigrana invece che dentro un pallino:
+  // dà ritmo alla lettura senza aggiungere un elemento grafico in più.
   const Step = ({ number, Icon, title, description }) => (
-    <div className="flex-1 p-6 bg-white border border-gray-200 rounded-2xl">
-      <div className="flex items-center gap-3 mb-3">
-        <span className="w-7 h-7 rounded-full bg-primary/10 text-primary text-sm font-bold flex items-center justify-center shrink-0">
-          {number}
-        </span>
-        <Icon size={18} className="text-gray-400" />
+    <div className="flex-1 relative p-6 bg-white border border-gray-200 rounded-2xl overflow-hidden group hover:border-gray-300 transition-colors">
+      <span className="absolute -top-3 right-3 text-7xl font-extrabold text-gray-50 select-none pointer-events-none">
+        {number}
+      </span>
+
+      <div className="relative">
+        <div className="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center mb-4">
+          <Icon size={18} className="text-primary" strokeWidth={2.5} />
+        </div>
+
+        <h3 className="text-base font-bold text-gray-900 mb-1.5">{title}</h3>
+        <p className="text-sm text-gray-500 leading-relaxed">{description}</p>
       </div>
-      <h3 className="text-base font-bold text-gray-900 mb-1.5">{title}</h3>
-      <p className="text-sm text-gray-500 leading-relaxed">{description}</p>
     </div>
   );
 
-  const Stat = ({ label, value, to, urgent = false }) => (
-    <Link
-      to={to}
-      className="flex-1 p-6 bg-white border border-gray-200 rounded-2xl hover:border-gray-300 hover:shadow-sm transition-all group"
-    >
-      <p className={`text-4xl font-extrabold tracking-tight ${
-        urgent && value > 0 ? 'text-rose-600' : 'text-gray-900'
-      }`}>
-        {isLoading ? '—' : value}
-      </p>
-      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-2 group-hover:text-gray-600 transition-colors">
-        {label}
-      </p>
-    </Link>
+  // La freccia compare solo al passaggio del mouse: segnala che il riquadro
+  // è cliccabile senza occupare spazio quando non serve.
+  const Stat = ({ label, value, to, urgent = false }) => {
+    const highlight = urgent && value > 0;
+
+    return (
+      <Link
+        to={to}
+        className={`flex-1 relative p-6 border rounded-2xl transition-all group ${
+          highlight
+            ? 'bg-rose-50/50 border-rose-100 hover:border-rose-200'
+            : 'bg-white border-gray-200 hover:border-gray-300'
+        }`}
+      >
+        <ArrowUpRight
+          size={16}
+          strokeWidth={2.5}
+          className="absolute top-5 right-5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
+        />
+
+        <p className={`text-4xl font-extrabold tracking-tight tabular-nums ${
+          highlight ? 'text-rose-600' : 'text-gray-900'
+        }`}>
+          {isLoading ? <span className="text-gray-200">—</span> : value}
+        </p>
+
+        <p className={`text-[11px] font-bold uppercase tracking-widest mt-2 transition-colors ${
+          highlight ? 'text-rose-500' : 'text-gray-400 group-hover:text-gray-600'
+        }`}>
+          {label}
+        </p>
+      </Link>
+    );
+  };
+
+  const SectionTitle = ({ children }) => (
+    <div className="flex items-center gap-4 mb-6">
+      <h3 className="text-sm font-bold text-black uppercase tracking-widest whitespace-nowrap">
+        {children}
+      </h3>
+      {/* Filo sottile che prosegue fino al margine: separa le sezioni senza
+          il peso di un bordo pieno. */}
+      <div className="h-px bg-gray-100 flex-1" />
+    </div>
   );
 
   return (
     <PageLayout topPadding="pt-0" layoutClass="pb-8 overflow-y-auto no-scrollbar">
       <div className="animate-in fade-in duration-300">
 
-        <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-gray-900 mb-4">
-          Overview
-        </h2>
-        <p className="text-lg text-gray-600 mb-12 max-w">
-          Compose experiments and their resources as reusable specifications,
-          then materialize them on the SLICES-RI research infrastructure.
-        </p>
+        {/* INTESTAZIONE */}
+        <div className="mb-14">
+          <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-gray-900 mb-4">
+            Overview
+          </h2>
+          <p className="text-lg text-gray-600 max-w leading-relaxed">
+            Compose experiments and their resources as reusable specifications,
+            then materialize them on the{' '}
+            <span className="text-gray-900 font-semibold">SLICES-RI</span>{' '}
+            research infrastructure.
+          </p>
+        </div>
 
         {/* ==========================================
             IL MODELLO IN TRE PASSI
             ========================================== */}
         <section className="mb-14">
-          <h3 className="text-sm font-bold text-black uppercase tracking-widest mb-6">
-            How it works
-          </h3>
+          <SectionTitle>How it works</SectionTitle>
 
           <div className="flex flex-col md:flex-row gap-4">
             <Step
@@ -146,24 +185,26 @@ export default function HomePage() {
             />
           </div>
 
-          <p className="text-sm text-black font-normal mt-6 max-w leading-relaxed">
-            Resources on SLICES-RI have a limited lifetime and are released when they
-            expire. The specification stays in the platform, so an experiment can be
-            reviewed and repeated after its machines are gone.
-          </p>
+          {/* Barra verticale invece del solo testo: lega la nota ai riquadri
+              sopra e la distingue da un paragrafo qualsiasi. */}
+          <div className="mt-6 pl-4 border-l-2 border-gray-100">
+            <p className="text-sm text-gray-500 max-w leading-relaxed">
+              Resources on SLICES-RI have a limited lifetime and are released when they
+              expire. The specification stays in the platform, so an experiment can be
+              reviewed, duplicated and repeated after its machines are gone.
+            </p>
+          </div>
         </section>
 
         {/* ==========================================
             STATO CORRENTE
             ========================================== */}
         <section className="mb-14">
-          <h3 className="text-sm font-bold text-black uppercase tracking-widest mb-6">
-            Current state
-          </h3>
+          <SectionTitle>Current state</SectionTitle>
 
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <Stat label="Drafts" value={drafts.length} to="/experiments" />
-            <Stat label="Deployed experiments" value={deployed.length} to="/experiments" />
+            <Stat label="Deployed" value={deployed.length} to="/experiments" />
             <Stat label="Active resources" value={activeResources.length} to="/resources" />
             <Stat label="Expiring soon" value={expiring.length} to="/resources" urgent />
           </div>
@@ -176,21 +217,24 @@ export default function HomePage() {
             l'esistenza di un'interfaccia: la CLI non segnala nulla. */}
         {expiring.length > 0 && (
           <section className="mb-14">
-            <div className="p-6 bg-amber-50 border border-amber-100 rounded-2xl">
-              <div className="flex items-center gap-2 mb-4">
-                <Clock size={18} className="text-amber-600" />
+            <div className="p-6 bg-amber-50/60 border border-amber-100 rounded-2xl">
+              <div className="flex items-center gap-2.5 mb-5">
+                <Clock size={16} className="text-amber-600" strokeWidth={2.5} />
                 <h3 className="text-sm font-bold text-amber-800 uppercase tracking-widest">
                   Expiring within the hour
                 </h3>
               </div>
 
-              <ul className="space-y-2">
+              <ul className="divide-y divide-amber-100">
                 {expiring.map((resource) => (
-                  <li key={resource.id} className="flex items-center justify-between text-sm">
+                  <li
+                    key={resource.id}
+                    className="flex items-center justify-between py-2.5 text-sm first:pt-0"
+                  >
                     <span className="font-semibold text-amber-900">
                       {resource.spec.name}
                     </span>
-                    <span className="font-bold text-amber-700">
+                    <span className="font-bold text-amber-700 tabular-nums">
                       {formatTimeLeft(resource.remote.expiresAt)}
                     </span>
                   </li>
@@ -215,14 +259,15 @@ export default function HomePage() {
             `slices project use`. È configurazione della piattaforma, non una
             scelta dell'utente: dichiararlo evita di promettere un controllo
             che non esiste. */}
-        <section>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 pt-6 border-t border-gray-100">
+        <section className="pt-6 border-t border-gray-100">
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-2">
             <p className="text-sm text-black font-bold">
               SLICES-RI project:{' '}
-              <span className="font-mono font-semibold text-blue-500">tesi-unibo</span>
+              <span className="font-mono font-semibold text-primary">tesi-unibo</span>
             </p>
             <p className="text-sm text-black font-bold">
-              Site: <span className="font-mono font-semibold text-blue-500">be-gent1</span>
+              Site:{' '}
+              <span className="font-mono font-semibold text-primary">be-gent1</span>
             </p>
           </div>
         </section>
