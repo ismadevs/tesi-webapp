@@ -489,3 +489,48 @@ export const requestDestroy = async (id) => {
   const counts = await loadResourceCounts();
   return toApi(saved, counts.get(id) ?? 0);
 };
+
+/**
+ * Richiede l'estensione della scadenza.
+ *
+ * Non contatta SLICES: aggiorna la durata desiderata nella specifica e
+ * segnala al controller di riconciliare. È lo stesso modello del deploy,
+ * con la differenza che qui la specifica cambia insieme allo stato.
+ */
+export const requestExtend = async (id, duration) => {
+  const current = await loadExperiment(id);
+
+  if (!current.remote.slicesExperimentId) {
+    throw new ConflictError(
+      'Questo esperimento non è stato materializzato su SLICES-RI.'
+    );
+  }
+
+  if (current.status !== EXPERIMENT_STATUS.DEPLOYED) {
+    throw new ConflictError(
+      `Operazione non consentita nello stato attuale (${current.status}).`
+    );
+  }
+
+  // Un esperimento scaduto non è più su SLICES: non c'è nulla da estendere.
+  if (current.remote.expiresAt && new Date(current.remote.expiresAt) < new Date()) {
+    throw new ConflictError(
+      'Questo esperimento è scaduto e le sue risorse sono già state liberate.'
+    );
+  }
+
+  const newDuration = (duration ?? '').trim();
+  validateDuration(newDuration);
+
+  const updated = new Experiment({
+    ...current,
+    spec: { ...current.spec, duration: newDuration },
+    status: EXPERIMENT_STATUS.EXTEND_REQUESTED,
+    error: null,
+    updatedAt: new Date().toISOString(),
+  });
+
+  const saved = await db.putDoc({ ...updated });
+  const counts = await loadResourceCounts();
+  return toApi(saved, counts.get(id) ?? 0);
+};

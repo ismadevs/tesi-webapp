@@ -26,14 +26,20 @@ export const EXPERIMENT_STATUS = {
   DEPLOYING: 'DEPLOYING',               // il controller ha invocato la CLI
   DEPLOYED: 'DEPLOYED',                 // materializzato su SLICES
   FAILED: 'FAILED',                     // errore, motivo in `error`
-  DESTROY_REQUESTED: 'DESTROY_REQUESTED', // Ciclo di distruzione. `slices experiment delete` porta via l'esperimento
-  DESTROYING: 'DESTROYING',               // e tutte le risorse che contiene, quindi una sola invocazione libera tutto.
-
+  // Ciclo di distruzione. `slices experiment delete` porta via l'esperimento
+  // e tutte le risorse che contiene, quindi una sola invocazione libera tutto.
+  DESTROY_REQUESTED: 'DESTROY_REQUESTED', 
+  DESTROYING: 'DESTROYING',               
   // L'esperimento è stato liberato su SLICES. Il documento NON viene
   // cancellato: la specifica sopravvive alla risorsa, e può essere duplicata
   // per rieseguire l'esperimento. L'eliminazione del documento è un'azione
   // separata e successiva.
   DESTROYED: 'DESTROYED',
+  // Ciclo di estensione. La durata desiderata vive già in spec.duration:
+  // l'utente la modifica, e questo stato segnala al controller di
+  // riconciliare la scadenza reale con quella dichiarata.
+  EXTEND_REQUESTED: 'EXTEND_REQUESTED',
+  EXTENDING: 'EXTENDING',
 };
 
 // Elenco degli stati validi, usato in validazione.

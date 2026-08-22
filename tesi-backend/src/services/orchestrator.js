@@ -64,6 +64,9 @@ const findDraftResources = (experimentId) =>
 const findExperimentsToDestroy = () =>
   db.queryDocs('experiments', 'by_status', { key: EXPERIMENT_STATUS.DESTROY_REQUESTED });
 
+const findExperimentsToExtend = () =>
+  db.queryDocs('experiments', 'by_status', { key: EXPERIMENT_STATUS.EXTEND_REQUESTED });
+
 // Rilegge il documento prima di scrivere, così la revisione è sempre quella
 // corrente. Costa una richiesta in più, ma elimina alla radice i conflitti
 // dovuti a una revisione tenuta in memoria fra un aggiornamento e l'altro.
@@ -536,21 +539,98 @@ const destroyResource = async (resource) => {
 };
 
 // ==========================================
+// ESTENSIONE DI UN ESPERIMENTO
+// ==========================================
+// Riconcilia la scadenza reale con la durata dichiarata in spec.duration.
+//
+// `bi extend` estende anche il contenitore, quindi una sola famiglia di
+// comandi basta. Resta però il vincolo dell'infrastruttura singola: VM e
+// baremetal non possono essere estesi nella stessa invocazione, e le risorse
+// vanno raggruppate per sito.
+const extendExperiment = async (experiment) => {
+  const { _id: id, spec, remote } = experiment;
+
+  log(`Estensione di "${spec.name}" a ${spec.duration}`);
+  await patchExperiment(id, { status: EXPERIMENT_STATUS.EXTENDING });
+
+  try {
+    const resources = await db.queryDocs('resources', 'by_experiment', {
+      key: [id, RESOURCE_STATUS.DEPLOYED],
+    });
+
+    if (resources.length === 0) {
+      throw new Error('Nessuna risorsa attiva da estendere.');
+    }
+
+    const byInfra = new Map();
+    for (const resource of resources) {
+      const list = byInfra.get(resource.spec.infra) ?? [];
+      list.push(resource.spec.name);
+      byInfra.set(resource.spec.infra, list);
+    }
+
+    for (const [infra, names] of byInfra) {
+      log(`Estensione di ${names.length} risorse su ${infra}`);
+      await slicesService.extendResources({
+        experimentId: remote.slicesExperimentId,
+        infra,
+        names,
+        duration: spec.duration,
+      });
+    }
+
+    // La scadenza autorevole è quella che SLICES riporta dopo l'operazione,
+    // non una stima calcolata localmente: la piattaforma potrebbe averla
+    // troncata al limite del progetto.
+    const remoteResources = await slicesService.listResources(remote.slicesExperimentId);
+    const newExpiry = remoteResources[0]?.expires_at ?? null;
+
+    for (const resource of resources) {
+      const match = remoteResources.find((r) => r.friendly_name === resource.spec.name);
+      if (!match) continue;
+
+      await patchResource(resource._id, {
+        remote: { ...resource.remote, expiresAt: match.expires_at ?? null },
+      });
+    }
+
+    const current = await db.getDoc(id);
+    await patchExperiment(id, {
+      status: EXPERIMENT_STATUS.DEPLOYED,
+      error: null,
+      remote: { ...current.remote, expiresAt: newExpiry ?? current.remote.expiresAt },
+    });
+
+    log(`"${spec.name}" esteso, nuova scadenza ${newExpiry}`);
+  } catch (error) {
+    log(`Estensione di "${spec.name}" fallita: ${error.message}`);
+
+    // Si torna a DEPLOYED: l'esperimento è ancora attivo con la scadenza
+    // precedente, quindi lo stato deve dire la verità.
+    await patchExperiment(id, {
+      status: EXPERIMENT_STATUS.DEPLOYED,
+      error: error.message,
+    });
+  }
+};
+
+// ==========================================
 // CICLO DI OSSERVAZIONE
 // ==========================================
 
 const processPending = async () => {
   if (isProcessing) return;
 
-  const [pending, toDestroy, experimentsToDestroy] = await Promise.all([
+  const [pending, toDestroy, experimentsToDestroy, toExtend] = await Promise.all([
     findPendingExperiments(),
     findResourcesToDestroy(),
     findExperimentsToDestroy(),
+    findExperimentsToExtend(),
   ]);
 
-  if (pending.length === 0 && toDestroy.length === 0 && experimentsToDestroy.length === 0) {
-    return;
-  }
+  const total = pending.length + toDestroy.length +
+                experimentsToDestroy.length + toExtend.length;
+  if (total === 0) return;
 
   isProcessing = true;
   try {
@@ -558,12 +638,17 @@ const processPending = async () => {
       await deployExperiment(experiment);
     }
 
+    // Le estensioni prima delle distruzioni: prolungare qualcosa che sta per
+    // essere distrutto è inutile, ma l'ordine inverso sprecherebbe una
+    // invocazione su risorse già sparite.
+    for (const experiment of toExtend) {
+      await extendExperiment(experiment);
+    }
+
     for (const resource of toDestroy) {
       await destroyResource(resource);
     }
 
-    // Per ultima: distruggere un esperimento porta via anche le risorse,
-    // quindi eventuali distruzioni singole in coda vanno elaborate prima.
     for (const experiment of experimentsToDestroy) {
       await destroyExperiment(experiment);
     }

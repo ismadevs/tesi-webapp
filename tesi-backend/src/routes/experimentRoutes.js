@@ -30,6 +30,9 @@ router.post('/:id/duplicate', experimentController.duplicateExperiment);
 // Il documento resta come storico: l'eliminazione è un'azione separata.
 router.post('/:id/destroy', experimentController.destroyExperiment);
 
+// POST /api/experiments/:id/extend - Estende la scadenza su SLICES-RI.
+router.post('/:id/extend', experimentController.extendExperiment);
+
 // POST /api/experiments/:id/deploy - Richiede la materializzazione su SLICES.
 // Verbo POST e non PUT perché non è l'aggiornamento di una risorsa ma la
 // richiesta di un'azione. Risponde 202 Accepted: la richiesta è stata presa

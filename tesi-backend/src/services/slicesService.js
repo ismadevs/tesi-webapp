@@ -218,3 +218,35 @@ export const destroyResources = async (experimentId, names) => {
   await runSlices(['bi', 'destroy', ...names, '--experiment', experimentId, '--force']);
   return true;
 };
+
+/**
+ * Estende la scadenza di una o più risorse.
+ *
+ * ATTENZIONE ALLA SEMANTICA DI --duration: non è un incremento. La CLI la
+ * documenta come "new lifetime, relative durations are computed from current
+ * time", quindi -d 6h significa "scadi fra sei ore da adesso", non "aggiungi
+ * sei ore". Passare un valore inferiore al tempo residuo accorcia la vita
+ * della risorsa.
+ *
+ * Il comando estende ANCHE il contenitore dell'esperimento: esiste un
+ * `experiment extend-only-experiment-container` per il caso opposto, cioè
+ * allungare l'esperimento senza toccare le risorse, che la CLI stessa marca
+ * come avanzato e quasi mai necessario.
+ *
+ * È il comportamento inverso di `experiment delete`, che invece non cancella
+ * a cascata. La documentazione non lo dichiara da nessuna parte.
+ *
+ * Vincolo: l'operazione riguarda risorse "on a single infrastructure", quindi
+ * VM e baremetal non possono essere estesi insieme e chi chiama deve
+ * raggruppare per sito.
+ */
+export const extendResources = async ({ experimentId, infra, names, duration }) => {
+  const { elapsedMs } = await runSlices([
+    'bi', '--infra', infra,
+    'extend', ...names,
+    '--experiment', experimentId,
+    '-d', duration,
+  ]);
+
+  return { elapsedMs };
+};

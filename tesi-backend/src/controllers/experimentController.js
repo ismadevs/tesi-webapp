@@ -128,6 +128,19 @@ export const duplicateExperiment = async (req, res) => {
   }
 };
 
+// POST /api/experiments/:id/extend
+// La nuova durata arriva nel corpo. Non estende nulla direttamente: aggiorna
+// la specifica e porta il documento in EXTEND_REQUESTED.
+export const extendExperiment = async (req, res) => {
+  try {
+    res.status(202).json(
+      await experimentService.requestExtend(req.params.id, req.body?.duration)
+    );
+  } catch (error) {
+    handleError(error, res);
+  }
+};
+
 // POST /api/experiments/:id/destroy
 // Non distrugge nulla direttamente: porta il documento in DESTROY_REQUESTED
 // e risponde 202. Sarà l'orchestratore a invocare la CLI.
