@@ -246,31 +246,34 @@ export default function ExperimentsPage() {
   };
 
   return (
-    <PageLayout topPadding="pt-0" layoutClass="pb-8 overflow-y-auto">
+    <PageLayout
+      topPadding="pt-0"
+      layoutClass={
+        selectedExperiment
+          ? "pb-8 overflow-hidden"
+          : "pb-8 overflow-y-auto no-scrollbar"
+      }
+    >
       <div className="animate-in fade-in duration-300 flex flex-col h-full">
-
         {/* La barra superiore scompare nel dettaglio, dove il titolo
             e' gia' il nome dell'esperimento. */}
         {!selectedExperiment && (
           <TopBar
             title="Experiments"
             description="Compose experiments before allocating them on SLICES-RI"
-            onAddClick={() => setFormTarget('new')}
+            onAddClick={() => setFormTarget("new")}
           />
         )}
 
-        <div className="flex-1 flex flex-col min-h-0">
-          {renderContent()}
-        </div>
+        <div className="flex-1 flex flex-col min-h-0">{renderContent()}</div>
 
         {formTarget && (
           <ExperimentFormModal
-            experiment={formTarget === 'new' ? null : formTarget}
+            experiment={formTarget === "new" ? null : formTarget}
             onClose={() => setFormTarget(null)}
             onSave={handleSave}
           />
         )}
-
       </div>
     </PageLayout>
   );

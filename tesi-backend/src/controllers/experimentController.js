@@ -151,3 +151,26 @@ export const destroyExperiment = async (req, res) => {
     handleError(error, res);
   }
 };
+
+// GET /api/experiments/:id/export
+// Restituisce la specifica come file scaricabile.
+export const exportExperiment = async (req, res) => {
+  try {
+    const spec = await experimentService.exportExperiment(req.params.id);
+
+    // Content-Disposition con attachment dice al browser di scaricare il file
+    // invece di mostrarlo, e ne suggerisce il nome. Senza, il JSON si
+    // aprirebbe in una scheda.
+    const filename = `${spec.spec.name}.json`;
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Indentato: il file è pensato per essere letto da una persona e
+    // versionato con Git, dove un formato compatto produrrebbe diff
+    // illeggibili su una riga sola.
+    res.status(200).send(JSON.stringify(spec, null, 2));
+  } catch (error) {
+    handleError(error, res);
+  }
+};

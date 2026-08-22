@@ -534,3 +534,63 @@ export const requestExtend = async (id, duration) => {
   const counts = await loadResourceCounts();
   return toApi(saved, counts.get(id) ?? 0);
 };
+
+// Versione del formato di esportazione. Cambierà solo se la struttura del
+// file cambia in modo incompatibile: un importatore futuro potrà leggerla per
+// decidere come interpretare il documento.
+const EXPORT_API_VERSION = 'slices-orchestrator/v1';
+
+/**
+ * Esporta la specifica di un esperimento come artefatto autonomo.
+ *
+ * VIENE ESPORTATA SOLO LA SPECIFICA, non lo stato.
+ * Identificatori, indirizzi, revisioni e timestamp descrivono UN'ESECUZIONE
+ * particolare: riferirebbero macchine che non esistono più. Un artefatto di
+ * Infrastructure as Code descrive invece cosa si vuole ottenere, ed è per
+ * questo riproducibile in un altro momento o in un altro progetto.
+ *
+ * È la stessa distinzione fra `spec` e `remote` che governa l'intero modello:
+ * qui si esporta la prima e si scarta la seconda.
+ *
+ * La struttura con apiVersion e kind segue la convenzione dei manifest
+ * Kubernetes: rende il file autodescrittivo e permette di riconoscerne la
+ * versione senza doverla dedurre dal contenuto.
+ */
+export const exportExperiment = async (id) => {
+  const experiment = await loadExperiment(id);
+
+  const resources = await db.queryDocs('resources', 'by_experiment', {
+    startkey: [id],
+    endkey: [id, {}],
+  });
+
+  return {
+    apiVersion: EXPORT_API_VERSION,
+    kind: 'Experiment',
+
+    metadata: {
+      exportedAt: new Date().toISOString(),
+      exportedFrom: process.env.SLICES_PROJECT || 'tesi-unibo',
+    },
+
+    spec: {
+      name: experiment.spec.name,
+      description: experiment.spec.description,
+      duration: experiment.spec.duration,
+
+      // Le risorse sono annidate perché nel modello non hanno esistenza
+      // autonoma: nascono dentro un esperimento e muoiono con lui.
+      //
+      // Vengono incluse anche quelle distrutte: descrivono la configurazione
+      // come è stata concepita, non lo stato in cui si trova adesso.
+      resources: resources.map((resource) => ({
+        name: resource.spec.name,
+        kind: resource.spec.kind,
+        infra: resource.spec.infra,
+        flavor: resource.spec.flavor,
+        image: resource.spec.image,
+        publicIpv4: resource.spec.publicIpv4,
+      })),
+    },
+  };
+};

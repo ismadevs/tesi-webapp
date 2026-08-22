@@ -39,4 +39,8 @@ router.post('/:id/extend', experimentController.extendExperiment);
 // in carico, l'esito arriverà in un secondo momento.
 router.post('/:id/deploy', experimentController.deployExperiment);
 
+// GET /api/experiments/:id/export - Scarica la specifica come file JSON.
+// Solo la spec, non lo stato: è un artefatto riproducibile, non un verbale.
+router.get('/:id/export', experimentController.exportExperiment);
+
 export default router;
