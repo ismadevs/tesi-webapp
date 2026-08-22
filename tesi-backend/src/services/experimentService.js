@@ -276,27 +276,35 @@ export const updateExperiment = async (id, data = {}) => {
 };
 
 /**
- * Elimina la specifica di un esperimento e delle sue risorse in bozza.
+ * Elimina il documento di un esperimento e delle sue risorse.
  *
  * ATTENZIONE ALLA SEMANTICA: qui si eliminano documenti dalla piattaforma,
- * non si distrugge nulla su SLICES. Sono due operazioni distinte, e per questo
- * l'eliminazione è ammessa solo sulle bozze: cancellare il documento di un
- * esperimento materializzato lascerebbe le macchine allocate senza più alcuna
- * traccia nella piattaforma, che è la situazione peggiore possibile.
+ * non si distrugge nulla su SLICES. Sono due operazioni distinte, ed è il
+ * motivo per cui l'eliminazione è limitata a due stati:
+ *
+ *   DRAFT      niente è mai stato allocato, quindi non c'è nulla da perdere
+ *   DESTROYED  le macchine sono già state liberate, resta solo lo storico
+ *
+ * Su un esperimento ancora attivo sarebbe la situazione peggiore possibile:
+ * macchine allocate su SLICES senza più alcuna traccia nella piattaforma,
+ * quindi invisibili all'utente e recuperabili solo dalla CLI.
  */
 export const deleteExperiment = async (id) => {
   const current = await loadExperiment(id);
 
-  if (current.status !== EXPERIMENT_STATUS.DRAFT) {
+  const removable = [EXPERIMENT_STATUS.DRAFT, EXPERIMENT_STATUS.DESTROYED];
+
+  if (!removable.includes(current.status)) {
     throw new ConflictError(
-      'Solo gli esperimenti in bozza possono essere eliminati. ' +
-      'Le risorse già allocate su SLICES-RI vengono liberate alla scadenza.'
+      'Questo esperimento è attivo su SLICES-RI. Distruggilo prima di ' +
+      'rimuoverlo dalla piattaforma.'
     );
   }
 
-  // Cancellazione a cascata. È sicura solo perché il controllo sopra limita
-  // l'operazione alle bozze: sono documenti che esistono solo nella
-  // piattaforma, quindi non c'è nulla di irreversibile da proteggere.
+  // Cancellazione a cascata delle risorse collegate.
+  //
+  // È sicura perché il controllo sopra limita l'operazione a due casi in cui
+  // nulla è allocato: bozze mai materializzate, oppure risorse già liberate.
   //
   // L'intervallo di chiavi copre tutti gli stati: l'oggetto vuoto ordina
   // dopo qualunque stringa nella collazione di CouchDB.
@@ -422,4 +430,47 @@ export const duplicateExperiment = async (id) => {
   }
 
   return toApi(experiment, sourceResources.length);
+};
+
+/**
+ * Richiede la distruzione di un esperimento materializzato.
+ *
+ * ATTENZIONE ALLA SEMANTICA: libera hardware reale su SLICES-RI, operazione
+ * irreversibile. È cosa diversa da deleteExperiment, che rimuove soltanto il
+ * documento dalla piattaforma.
+ *
+ * `slices experiment delete` porta via anche tutte le risorse contenute,
+ * quindi basta una sola invocazione: l'orchestratore marcherà poi le risorse
+ * come distrutte di conseguenza.
+ */
+export const requestDestroy = async (id) => {
+  const current = await loadExperiment(id);
+
+  if (!current.remote.slicesExperimentId) {
+    throw new ConflictError(
+      'Questo esperimento non è mai stato materializzato su SLICES-RI. ' +
+      'Usa l\'eliminazione della bozza.'
+    );
+  }
+
+  if (current.status === EXPERIMENT_STATUS.DESTROYED) {
+    throw new ConflictError('Questo esperimento è già stato distrutto.');
+  }
+
+  const destroyable = [EXPERIMENT_STATUS.DEPLOYED, EXPERIMENT_STATUS.FAILED];
+  if (!destroyable.includes(current.status)) {
+    throw new ConflictError(
+      `Operazione non consentita nello stato attuale (${current.status}).`
+    );
+  }
+
+  const updated = new Experiment({
+    ...current,
+    status: EXPERIMENT_STATUS.DESTROY_REQUESTED,
+    updatedAt: new Date().toISOString(),
+  });
+
+  const saved = await db.putDoc({ ...updated });
+  const counts = await loadResourceCounts();
+  return toApi(saved, counts.get(id) ?? 0);
 };

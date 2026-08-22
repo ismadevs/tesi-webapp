@@ -59,7 +59,10 @@ const findResourcesToDestroy = () =>
 const findDraftResources = (experimentId) =>
   db.queryDocs('resources', 'by_experiment', {
     key: [experimentId, RESOURCE_STATUS.DRAFT],
-  });
+});
+
+const findExperimentsToDestroy = () =>
+  db.queryDocs('experiments', 'by_status', { key: EXPERIMENT_STATUS.DESTROY_REQUESTED });
 
 // Rilegge il documento prima di scrivere, così la revisione è sempre quella
 // corrente. Costa una richiesta in più, ma elimina alla radice i conflitti
@@ -387,6 +390,74 @@ const deployExperiment = async (experiment) => {
 };
 
 // ==========================================
+// DISTRUZIONE DI UN ESPERIMENTO
+// ==========================================
+// `slices experiment delete --force` libera l'esperimento e tutte le risorse
+// che contiene: una sola invocazione al posto di una per macchina.
+//
+// Il flag --force è obbligatorio da programma: senza, la CLI chiede una
+// conferma interattiva e il processo figlio resta appeso in attesa di un
+// input che non arriverà mai, senza errore né timeout.
+const destroyExperiment = async (experiment) => {
+  const { _id: id, spec, remote } = experiment;
+
+  if (!remote.slicesExperimentId) {
+    await patchExperiment(id, {
+      status: EXPERIMENT_STATUS.FAILED,
+      error: 'Identificatore remoto mancante.',
+    });
+    return;
+  }
+
+  log(`Distruzione dell'esperimento "${spec.name}"`);
+  await patchExperiment(id, { status: EXPERIMENT_STATUS.DESTROYING });
+
+  try {
+    await slicesService.deleteExperiment(remote.slicesExperimentId);
+
+    const terminatedAt = new Date().toISOString();
+
+    // Tutte le risorse ancora vive vanno marcate come distrutte: su SLICES
+    // sono già sparite insieme all'esperimento, e lasciarle DEPLOYED
+    // significherebbe mostrare uno stato che non corrisponde più alla realtà.
+    const resources = await db.queryDocs('resources', 'by_experiment', {
+      startkey: [id],
+      endkey: [id, {}],
+    });
+
+    for (const resource of resources) {
+      if (resource.status === RESOURCE_STATUS.DESTROYED) continue;
+      if (resource.status === RESOURCE_STATUS.DRAFT) continue;
+
+      await patchResource(resource._id, {
+        status: RESOURCE_STATUS.DESTROYED,
+        remote: { ...resource.remote, slicesStatus: null, terminatedAt },
+      });
+    }
+
+    // Il documento resta, con lo stato aggiornato e il flag deleted che
+    // rispecchia il soft delete di SLICES.
+    const current = await db.getDoc(id);
+    await patchExperiment(id, {
+      status: EXPERIMENT_STATUS.DESTROYED,
+      error: null,
+      remote: { ...current.remote, deleted: true },
+    });
+
+    log(`"${spec.name}" distrutto insieme a ${resources.length} risorse`);
+  } catch (error) {
+    log(`Distruzione di "${spec.name}" fallita: ${error.message}`);
+
+    // Si torna a DEPLOYED e non a FAILED: l'esperimento è ancora attivo su
+    // SLICES, quindi lo stato deve dire la verità e l'utente può riprovare.
+    await patchExperiment(id, {
+      status: EXPERIMENT_STATUS.DEPLOYED,
+      error: error.message,
+    });
+  }
+};
+
+// ==========================================
 // DISTRUZIONE DELLE RISORSE
 // ==========================================
 
@@ -440,14 +511,15 @@ const destroyResource = async (resource) => {
 const processPending = async () => {
   if (isProcessing) return;
 
-  // Due tipi di lavoro da svolgere: esperimenti da materializzare e risorse
-  // da liberare. Entrambi nascono da uno stato scritto dall'interfaccia.
-  const [pending, toDestroy] = await Promise.all([
+  const [pending, toDestroy, experimentsToDestroy] = await Promise.all([
     findPendingExperiments(),
     findResourcesToDestroy(),
+    findExperimentsToDestroy(),
   ]);
 
-  if (pending.length === 0 && toDestroy.length === 0) return;
+  if (pending.length === 0 && toDestroy.length === 0 && experimentsToDestroy.length === 0) {
+    return;
+  }
 
   isProcessing = true;
   try {
@@ -457,6 +529,12 @@ const processPending = async () => {
 
     for (const resource of toDestroy) {
       await destroyResource(resource);
+    }
+
+    // Per ultima: distruggere un esperimento porta via anche le risorse,
+    // quindi eventuali distruzioni singole in coda vanno elaborate prima.
+    for (const experiment of experimentsToDestroy) {
+      await destroyExperiment(experiment);
     }
   } finally {
     isProcessing = false;

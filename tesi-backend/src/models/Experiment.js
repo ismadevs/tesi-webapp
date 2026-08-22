@@ -26,6 +26,14 @@ export const EXPERIMENT_STATUS = {
   DEPLOYING: 'DEPLOYING',               // il controller ha invocato la CLI
   DEPLOYED: 'DEPLOYED',                 // materializzato su SLICES
   FAILED: 'FAILED',                     // errore, motivo in `error`
+  DESTROY_REQUESTED: 'DESTROY_REQUESTED', // Ciclo di distruzione. `slices experiment delete` porta via l'esperimento
+  DESTROYING: 'DESTROYING',               // e tutte le risorse che contiene, quindi una sola invocazione libera tutto.
+
+  // L'esperimento è stato liberato su SLICES. Il documento NON viene
+  // cancellato: la specifica sopravvive alla risorsa, e può essere duplicata
+  // per rieseguire l'esperimento. L'eliminazione del documento è un'azione
+  // separata e successiva.
+  DESTROYED: 'DESTROYED',
 };
 
 // Elenco degli stati validi, usato in validazione.

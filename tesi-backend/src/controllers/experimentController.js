@@ -127,3 +127,14 @@ export const duplicateExperiment = async (req, res) => {
     handleError(error, res);
   }
 };
+
+// POST /api/experiments/:id/destroy
+// Non distrugge nulla direttamente: porta il documento in DESTROY_REQUESTED
+// e risponde 202. Sarà l'orchestratore a invocare la CLI.
+export const destroyExperiment = async (req, res) => {
+  try {
+    res.status(202).json(await experimentService.requestDestroy(req.params.id));
+  } catch (error) {
+    handleError(error, res);
+  }
+};

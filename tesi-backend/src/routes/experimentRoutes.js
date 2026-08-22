@@ -26,6 +26,10 @@ router.delete('/:id', experimentController.deleteExperiment);
 // Consentita in qualunque stato: non tocca l'infrastruttura.
 router.post('/:id/duplicate', experimentController.duplicateExperiment);
 
+// POST /api/experiments/:id/destroy - Libera esperimento e risorse su SLICES.
+// Il documento resta come storico: l'eliminazione è un'azione separata.
+router.post('/:id/destroy', experimentController.destroyExperiment);
+
 // POST /api/experiments/:id/deploy - Richiede la materializzazione su SLICES.
 // Verbo POST e non PUT perché non è l'aggiornamento di una risorsa ma la
 // richiesta di un'azione. Risponde 202 Accepted: la richiesta è stata presa
