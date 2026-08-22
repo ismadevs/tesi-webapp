@@ -70,6 +70,7 @@ export default function ExperimentsPage() {
     const transient = [
       STATUS.DEPLOY_REQUESTED, STATUS.DEPLOYING,
       STATUS.DESTROY_REQUESTED, STATUS.DESTROYING,
+      STATUS.EXTEND_REQUESTED, STATUS.EXTENDING
     ];
 
     if (!experiments.some((e) => transient.includes(e.status))) return;
@@ -179,6 +180,28 @@ export default function ExperimentsPage() {
     }
   };
 
+    // Estende esperimento e macchine insieme. Come il deploy, la richiesta
+  // ritorna subito: sarà l'orchestratore a invocare la CLI.
+  const handleExtend = async (id, duration) => {
+    try {
+      const response = await fetch(`${API_URL}/${id}/extend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ duration }),
+      });
+
+      if (!response.ok) {
+        return await readError(response, 'Unable to extend the experiment.');
+      }
+
+      const updated = await response.json();
+      setExperiments((prev) => prev.map((e) => (e.id === id ? updated : e)));
+      toast.success('Extension requested.');
+    } catch {
+      return 'Cannot reach the server.';
+    }
+  };
+
   // ==========================================
   // RENDERING
   // ==========================================
@@ -209,6 +232,7 @@ export default function ExperimentsPage() {
           onDelete={handleDelete}
           onDuplicate={handleDuplicate}
           onDestroy={handleDestroy}
+          onExtend={handleExtend}
         />
       );
     }

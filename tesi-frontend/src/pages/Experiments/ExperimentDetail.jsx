@@ -8,9 +8,11 @@ import {
 import StatusBadge from './StatusBadge';
 import DeleteExperimentModal from './DeleteExperimentModal';
 import DestroyExperimentModal from './DestroyExperimentModal';
+import ExtendExperimentModal from './ExtendExperimentModal';
 import {
   STATUS, isEditable, isDestroyable, isRemovable,
   formatTimeLeft, isExpiringSoon, formatDateTime,
+  isExtendable
 } from './experimentStatus';
 
 // ==========================================
@@ -30,7 +32,7 @@ import {
 // DEPLOYED → destroy → DESTROYED → delete.
 
 export default function ExperimentDetail({
-  experiment, onBack, onEdit, onDelete, onDuplicate, onDestroy,
+  experiment, onBack, onEdit, onDelete, onDuplicate, onDestroy, onExtend,
 }) {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDestroyModalOpen, setIsDestroyModalOpen] = useState(false);
@@ -42,6 +44,8 @@ export default function ExperimentDetail({
   const isDestroyed = experiment.status === STATUS.DESTROYED;
   const { slicesExperimentId, projectName, createdAt, expiresAt } = experiment.remote;
 
+  const [isExtendModalOpen, setIsExtendModalOpen] = useState(false);
+  const extendable = isExtendable(experiment);
   // ==========================================
   // BANNER DI STATO
   // ==========================================
@@ -114,7 +118,6 @@ export default function ExperimentDetail({
 
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-300 overflow-auto no-scrollbar">
-
       {/* NAVIGAZIONE */}
       <div className="mb-8">
         <button
@@ -128,12 +131,18 @@ export default function ExperimentDetail({
 
       {/* INTESTAZIONE */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <h1 className={`text-4xl font-bold tracking-tight ${
-          isDestroyed ? 'text-gray-500' : 'text-gray-900'
-        }`}>
+        <h1
+          className={`text-4xl font-bold tracking-tight ${
+            isDestroyed ? "text-gray-500" : "text-gray-900"
+          }`}
+        >
           {experiment.spec.name}
         </h1>
-        <StatusBadge status={experiment.status} expired={experiment.isExpired} size="lg" />
+        <StatusBadge
+          status={experiment.status}
+          expired={experiment.isExpired}
+          size="lg"
+        />
       </div>
 
       <div className="mb-10">{renderBanner()}</div>
@@ -152,7 +161,7 @@ export default function ExperimentDetail({
           <div className="sm:col-span-2">
             <Field
               label="Description"
-              value={experiment.spec.description || 'No description provided.'}
+              value={experiment.spec.description || "No description provided."}
             />
           </div>
         </div>
@@ -170,19 +179,19 @@ export default function ExperimentDetail({
             <div className="sm:col-span-2">
               <Field label="Experiment ID" value={slicesExperimentId} mono />
             </div>
-            <Field label="Project" value={projectName || '—'} />
-            <Field label="Created" value={formatDateTime(createdAt) || '—'} />
+            <Field label="Project" value={projectName || "—"} />
+            <Field label="Created" value={formatDateTime(createdAt) || "—"} />
 
             {/* Su un esperimento distrutto il conto alla rovescia non ha più
                 significato: le macchine sono già state liberate. */}
             {!isDestroyed && (
               <Field
                 label="Time left"
-                value={formatTimeLeft(expiresAt) || '—'}
+                value={formatTimeLeft(expiresAt) || "—"}
                 urgent={isExpiringSoon(expiresAt)}
               />
             )}
-            <Field label="Expires" value={formatDateTime(expiresAt) || '—'} />
+            <Field label="Expires" value={formatDateTime(expiresAt) || "—"} />
           </div>
         </section>
       )}
@@ -207,8 +216,8 @@ export default function ExperimentDetail({
             </p>
             <p className="text-sm text-gray-500 mt-1">
               {editable
-                ? 'Add or edit the machines this experiment will allocate'
-                : 'Machines allocated by this experiment'}
+                ? "Add or edit the machines this experiment will allocate"
+                : "Machines allocated by this experiment"}
             </p>
           </div>
 
@@ -221,7 +230,6 @@ export default function ExperimentDetail({
 
       {/* AZIONI */}
       <div className="pt-8 mt-auto flex justify-end items-center gap-3 border-t border-gray-100">
-
         {/* Duplicate è l'unica azione sempre disponibile: non tocca
             l'infrastruttura, copia soltanto la specifica. È ciò che rende
             riutilizzabile un esperimento materializzato, scaduto o distrutto. */}
@@ -240,6 +248,19 @@ export default function ExperimentDetail({
           >
             <Pencil size={16} />
             Edit
+          </button>
+        )}
+
+        {/* Extend: prolunga la vita di esperimento e macchine. È l'azione che
+            completa il ciclo di vita, e l'unica risposta possibile all'avviso
+            di scadenza mostrato nella Home. */}
+        {extendable && (
+          <button
+            onClick={() => setIsExtendModalOpen(true)}
+            className={`${buttonBase} bg-white text-primary border-primary/30 hover:bg-primary/5`}
+          >
+            <Clock size={16} />
+            Extend
           </button>
         )}
 
@@ -262,10 +283,22 @@ export default function ExperimentDetail({
             className={`${buttonBase} bg-white text-black border-gray-200 hover:bg-rose-500 hover:text-white hover:border-rose-500`}
           >
             <Trash2 size={16} />
-            {isDestroyed ? 'Remove' : 'Delete draft'}
+            {isDestroyed ? "Remove" : "Delete draft"}
           </button>
         )}
       </div>
+
+      {isExtendModalOpen && (
+        <ExtendExperimentModal
+          experiment={experiment}
+          onClose={() => setIsExtendModalOpen(false)}
+          onConfirm={async (id, duration) => {
+            const error = await onExtend(id, duration);
+            if (!error) setIsExtendModalOpen(false);
+            return error;
+          }}
+        />
+      )}
 
       {isDeleteModalOpen && (
         <DeleteExperimentModal
@@ -288,7 +321,6 @@ export default function ExperimentDetail({
           }}
         />
       )}
-
     </div>
   );
 }

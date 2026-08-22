@@ -17,6 +17,8 @@ export const STATUS = {
   DESTROY_REQUESTED: 'DESTROY_REQUESTED',
   DESTROYING: 'DESTROYING',
   DESTROYED: 'DESTROYED',
+  EXTEND_REQUESTED: 'EXTEND_REQUESTED',
+  EXTENDING: 'EXTENDING',
 };
 
 // Per ogni stato: etichetta leggibile, classi cromatiche e se il pallino
@@ -87,6 +89,14 @@ const STATUS_CONFIG = {
     dot: "bg-gray-300",
     pulse: false,
   },
+  [STATUS.EXTEND_REQUESTED]: {
+    label: 'Extending', text: 'text-blue-600', bg: 'bg-blue-50',
+    border: 'border-blue-100', dot: 'bg-blue-500', pulse: true,
+  },
+  [STATUS.EXTENDING]: {
+    label: 'Extending', text: 'text-blue-600', bg: 'bg-blue-50',
+    border: 'border-blue-100', dot: 'bg-blue-500', pulse: true,
+  },
 };
 
 export const getStatusConfig = (status) =>
@@ -146,6 +156,13 @@ export const isDestroyable = (experiment) =>
   Boolean(experiment?.remote?.slicesExperimentId) &&
   !experiment.isExpired &&
   [STATUS.DEPLOYED, STATUS.FAILED].includes(experiment.status);
+
+// Estendibile solo un esperimento attivo e non ancora scaduto: a scadenza
+// avvenuta le macchine sono già state liberate e non c'è nulla da prolungare.
+export const isExtendable = (experiment) =>
+  experiment?.status === STATUS.DEPLOYED &&
+  !experiment.isExpired &&
+  Boolean(experiment.remote?.slicesExperimentId);
 
 // Il documento è rimovibile quando nulla è allocato: una bozza, un
 // esperimento distrutto, oppure uno scaduto, le cui macchine sono state
