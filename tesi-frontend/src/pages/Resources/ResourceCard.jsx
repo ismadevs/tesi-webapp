@@ -210,7 +210,7 @@ export default function ResourceCard({
       {/* FOOTER: stato, informazione temporale e azioni di sola lettura */}
       <div className="flex justify-between items-end mt-5 pt-4 border-t border-gray-100">
         <div className="flex flex-col gap-2">
-          <StatusBadge status={resource.status} />
+          <StatusBadge status={resource.status} expired={resource.isExpired} />
           {renderTiming()}
         </div>
 

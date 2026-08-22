@@ -58,7 +58,9 @@ export default function HomePage() {
   // CONTEGGI
   // ==========================================
   const drafts = experiments.filter((e) => e.status === STATUS.DRAFT);
-  const deployed = experiments.filter((e) => e.status === STATUS.DEPLOYED);
+  const deployed = experiments.filter(
+    (e) => e.status === STATUS.DEPLOYED && !e.isExpired
+  );
 
   const activeResources = resources.filter(
     (r) => r.status === STATUS.DEPLOYED && !r.isExpired

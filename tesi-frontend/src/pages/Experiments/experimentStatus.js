@@ -138,3 +138,18 @@ export const formatDateTime = (isoString) => {
     minute: '2-digit',
   });
 };
+
+// Un esperimento è distruggibile quando esiste su SLICES e non è già stato
+// liberato. Il documento resta comunque nella piattaforma: l'eliminazione è
+// un'azione separata e successiva.
+export const isDestroyable = (experiment) =>
+  Boolean(experiment?.remote?.slicesExperimentId) &&
+  !experiment.isExpired &&
+  [STATUS.DEPLOYED, STATUS.FAILED].includes(experiment.status);
+
+// Il documento è rimovibile quando nulla è allocato: una bozza, un
+// esperimento distrutto, oppure uno scaduto, le cui macchine sono state
+// liberate automaticamente dall'infrastruttura.
+export const isRemovable = (experiment) =>
+  [STATUS.DRAFT, STATUS.DESTROYED].includes(experiment?.status) ||
+  Boolean(experiment?.isExpired);

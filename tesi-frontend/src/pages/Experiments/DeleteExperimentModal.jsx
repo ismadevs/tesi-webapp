@@ -1,18 +1,24 @@
 import { X, Trash2 } from 'lucide-react';
 
+import { STATUS } from './experimentStatus';
+
 // ==========================================
 // DELETE EXPERIMENT MODAL
 // ==========================================
-// Conferma l'eliminazione della SPECIFICA, non la distruzione di risorse su
-// SLICES: sono due operazioni con semantica diversa, e confonderle sarebbe un
-// errore di progetto. Per questo la modale compare solo sulle bozze, dove non
-// esiste nulla di allocato.
+// Conferma la rimozione del DOCUMENTO dalla piattaforma, non la distruzione
+// di risorse su SLICES: sono due operazioni con semantica diversa, e
+// confonderle sarebbe un errore di progetto.
 //
-// Le risorse in bozza collegate vengono rimosse insieme all'esperimento. Il
-// conteggio è dichiarato esplicitamente perché una cancellazione a cascata
-// silenziosa sorprenderebbe l'utente.
+// Per questo l'azione è ammessa in due soli casi, entrambi innocui:
+//   DRAFT      niente è mai stato allocato
+//   DESTROYED  le macchine sono già state liberate, resta lo storico
+//
+// Il testo si adatta al caso, perché il significato per l'utente cambia:
+// nel primo butta via un lavoro non ancora fatto, nel secondo archivia
+// qualcosa che è già finito.
 
 export default function DeleteExperimentModal({ experiment, onClose, onConfirm }) {
+  const isDestroyed = experiment.status === STATUS.DESTROYED;
   const resourceCount = experiment.resourceCount ?? 0;
 
   return (
@@ -27,7 +33,7 @@ export default function DeleteExperimentModal({ experiment, onClose, onConfirm }
 
         <div className="flex items-start justify-between p-8 pb-4">
           <h2 className="text-xl font-extrabold text-gray-900 tracking-tight">
-            Delete draft
+            {isDestroyed ? 'Remove experiment' : 'Delete draft'}
           </h2>
           <button
             onClick={onClose}
@@ -37,18 +43,29 @@ export default function DeleteExperimentModal({ experiment, onClose, onConfirm }
           </button>
         </div>
 
-        <div className="px-8 pb-6">
+        <div className="px-8 pb-6 space-y-3">
           <p className="text-sm text-gray-600 leading-relaxed">
-            The draft{' '}
             <span className="font-bold text-gray-900">{experiment.spec.name}</span>{' '}
-            will be removed from the platform. Nothing is allocated on SLICES-RI,
-            so no resources are affected.
+            will be removed from the platform.{' '}
+            {isDestroyed
+              ? 'Its machines have already been released, so nothing on SLICES-RI is affected.'
+              : 'Nothing is allocated on SLICES-RI, so no resources are affected.'}
           </p>
 
-          {resourceCount > 0 && (
-            <p className="text-sm text-gray-600 leading-relaxed mt-3">
-              Its {resourceCount} draft {resourceCount === 1 ? 'resource' : 'resources'}{' '}
-              will be removed as well.
+          {/* Sulle bozze il conteggio avvisa della cancellazione a cascata.
+              Sugli esperimenti distrutti il numero non è più significativo,
+              perché le risorse contate sono soltanto storico. */}
+          {!isDestroyed && resourceCount > 0 && (
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Its {resourceCount} draft{' '}
+              {resourceCount === 1 ? 'resource' : 'resources'} will be removed as well.
+            </p>
+          )}
+
+          {isDestroyed && (
+            <p className="text-sm text-gray-500 leading-relaxed">
+              The specification will no longer be available: duplicate it first if you
+              want to keep the configuration.
             </p>
           )}
         </div>
@@ -67,7 +84,7 @@ export default function DeleteExperimentModal({ experiment, onClose, onConfirm }
             className="px-6 py-2.5 text-sm font-bold text-white bg-rose-500 rounded-xl hover:bg-rose-600 transition-colors cursor-pointer flex items-center gap-2"
           >
             <Trash2 size={16} />
-            Delete
+            {isDestroyed ? 'Remove' : 'Delete'}
           </button>
         </div>
 

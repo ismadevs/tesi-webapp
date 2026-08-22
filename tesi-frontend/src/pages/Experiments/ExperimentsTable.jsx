@@ -85,7 +85,7 @@ export default function ExperimentsTable({ experiments, onRowClick }) {
                   </td>
 
                   <td className="py-4 px-5 border-r border-gray-100 align-middle">
-                    <StatusBadge status={exp.status} />
+                    <StatusBadge status={exp.status} expired={exp.isExpired} />
                   </td>
 
                   {/* Conteggio calcolato dal backend: in SLICES la risorsa

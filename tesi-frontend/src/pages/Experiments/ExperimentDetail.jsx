@@ -1,30 +1,52 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, ArrowLeft, Database, Pencil, Trash2, Box, Clock, FileText, AlertCircle, Copy } from 'lucide-react';
+import {
+  ArrowLeft, ArrowRight, Database, Pencil, Trash2, Copy, Clock,
+  FileText, AlertCircle,
+} from 'lucide-react';
+
 import StatusBadge from './StatusBadge';
 import DeleteExperimentModal from './DeleteExperimentModal';
-import { STATUS, isEditable, formatTimeLeft, isExpiringSoon, formatDateTime } from './experimentStatus';
+import DestroyExperimentModal from './DestroyExperimentModal';
+import {
+  STATUS, isEditable, isDestroyable, isRemovable,
+  formatTimeLeft, isExpiringSoon, formatDateTime,
+} from './experimentStatus';
 
 // ==========================================
 // EXPERIMENT DETAIL (Presentational Component)
 // ==========================================
 // Corrisponde a `slices experiment show`, ma con una differenza sostanziale:
-// mostra anche gli esperimenti che su SLICES non esistono ancora.
+// mostra anche gli esperimenti che su SLICES non esistono ancora, o che non
+// esistono più.
 //
-// Il contrasto fra le due viste, prima e dopo la materializzazione, e' cio' che
-// rende visibile la separazione fra specifica e infrastruttura.
+// LE AZIONI SONO TRE, CON SEMANTICA DIVERSA
+//   Duplicate  sempre disponibile, copia la specifica come nuova bozza
+//   Destroy    libera hardware reale su SLICES, irreversibile
+//   Delete     rimuove il documento dalla piattaforma
+//
+// Destroy e Delete non sono la stessa cosa a stati diversi: sono operazioni
+// distinte, e il percorso completo su un esperimento attivo è
+// DEPLOYED → destroy → DESTROYED → delete.
 
-export default function ExperimentDetail({ experiment, onBack, onEdit, onDelete, onDuplicate }) {
+export default function ExperimentDetail({
+  experiment, onBack, onEdit, onDelete, onDuplicate, onDestroy,
+}) {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDestroyModalOpen, setIsDestroyModalOpen] = useState(false);
 
   const editable = isEditable(experiment);
+  const destroyable = isDestroyable(experiment);
+  const removable = isRemovable(experiment);
+
+  const isDestroyed = experiment.status === STATUS.DESTROYED;
   const { slicesExperimentId, projectName, createdAt, expiresAt } = experiment.remote;
 
   // ==========================================
   // BANNER DI STATO
   // ==========================================
   // Le azioni di scrittura scompaiono sui documenti materializzati invece di
-  // restare disabilitate, perche' non torneranno mai disponibili. Il banner si
+  // restare disabilitate, perché non torneranno mai disponibili. Il banner si
   // fa carico di spiegare l'assenza: una frase al posto giusto informa meglio
   // di un tooltip da cercare passandoci sopra.
   const renderBanner = () => {
@@ -38,6 +60,17 @@ export default function ExperimentDetail({ experiment, onBack, onEdit, onDelete,
               {experiment.error || 'No further details available.'}
             </p>
           </div>
+        </div>
+      );
+    }
+
+    if (isDestroyed) {
+      return (
+        <div className="p-4 bg-gray-50 border border-gray-200 rounded-2xl">
+          <p className="text-sm text-gray-600">
+            The machines of this experiment have been released on SLICES-RI.
+            The specification is kept here: duplicate it to run the experiment again.
+          </p>
         </div>
       );
     }
@@ -56,15 +89,14 @@ export default function ExperimentDetail({ experiment, onBack, onEdit, onDelete,
     return (
       <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
         <p className="text-sm text-emerald-700">
-          This experiment has been created on SLICES-RI. The specification can no
-          longer be modified.
+          This experiment is running on SLICES-RI. The specification can no longer
+          be modified.
         </p>
       </div>
     );
   };
 
-  // Riga di metadato. I dati remoti compaiono solo quando esistono davvero:
-  // prima del deploy non hanno alcun valore da mostrare.
+  // Riga di metadato. I dati remoti compaiono solo quando esistono davvero.
   const Field = ({ label, value, mono = false, urgent = false }) => (
     <div>
       <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">
@@ -76,8 +108,12 @@ export default function ExperimentDetail({ experiment, onBack, onEdit, onDelete,
     </div>
   );
 
+  const buttonBase =
+    'px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-300 ' +
+    'flex items-center gap-2 cursor-pointer border';
+
   return (
-    <div className="flex flex-col h-full animate-in fade-in duration-300 overflow-y-auto no-scrollbar">
+    <div className="flex flex-col h-full animate-in fade-in duration-300 overflow-auto no-scrollbar">
 
       {/* NAVIGAZIONE */}
       <div className="mb-8">
@@ -92,15 +128,18 @@ export default function ExperimentDetail({ experiment, onBack, onEdit, onDelete,
 
       {/* INTESTAZIONE */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <h1 className="text-4xl font-bold text-gray-900 tracking-tight">
+        <h1 className={`text-4xl font-bold tracking-tight ${
+          isDestroyed ? 'text-gray-500' : 'text-gray-900'
+        }`}>
           {experiment.spec.name}
         </h1>
-        <StatusBadge status={experiment.status} size="lg" />
+        <StatusBadge status={experiment.status} expired={experiment.isExpired} size="lg" />
       </div>
 
       <div className="mb-10">{renderBanner()}</div>
 
-      {/* SPECIFICA: sempre presente, e' cio' che l'utente ha dichiarato */}
+      {/* SPECIFICA: sempre presente, è ciò che l'utente ha dichiarato e resta
+          leggibile anche dopo che le macchine sono state liberate */}
       <section className="mb-10">
         <h2 className="text-sm font-bold text-black uppercase tracking-widest mb-6 flex items-center gap-2">
           <FileText size={16} strokeWidth={2.5} />
@@ -133,17 +172,22 @@ export default function ExperimentDetail({ experiment, onBack, onEdit, onDelete,
             </div>
             <Field label="Project" value={projectName || '—'} />
             <Field label="Created" value={formatDateTime(createdAt) || '—'} />
-            <Field
-              label="Time left"
-              value={formatTimeLeft(expiresAt) || '—'}
-              urgent={isExpiringSoon(expiresAt)}
-            />
+
+            {/* Su un esperimento distrutto il conto alla rovescia non ha più
+                significato: le macchine sono già state liberate. */}
+            {!isDestroyed && (
+              <Field
+                label="Time left"
+                value={formatTimeLeft(expiresAt) || '—'}
+                urgent={isExpiringSoon(expiresAt)}
+              />
+            )}
             <Field label="Expires" value={formatDateTime(expiresAt) || '—'} />
           </div>
         </section>
       )}
 
-            {/* RISORSE
+      {/* RISORSE
           Le card e le azioni vivono nella sezione Resources: qui basta il
           conteggio e un collegamento diretto, così non esistono due viste
           della stessa cosa da tenere allineate. */}
@@ -176,36 +220,50 @@ export default function ExperimentDetail({ experiment, onBack, onEdit, onDelete,
       </section>
 
       {/* AZIONI */}
-      {/* Duplicate è l'unica azione sempre disponibile: non tocca
-          l'infrastruttura, copia soltanto la specifica. È ciò che rende
-          riutilizzabile un esperimento già materializzato o scaduto.*/}
       <div className="pt-8 mt-auto flex justify-end items-center gap-3 border-t border-gray-100">
+
+        {/* Duplicate è l'unica azione sempre disponibile: non tocca
+            l'infrastruttura, copia soltanto la specifica. È ciò che rende
+            riutilizzabile un esperimento materializzato, scaduto o distrutto. */}
         <button
           onClick={() => onDuplicate(experiment.id)}
-          className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-300 flex items-center gap-2 bg-white text-black border border-gray-200 hover:bg-gray-50 cursor-pointer"
+          className={`${buttonBase} bg-white text-black border-gray-200 hover:bg-gray-50`}
         >
           <Copy size={16} />
           Duplicate
         </button>
 
         {editable && (
-          <>
-            <button
-              onClick={() => onEdit(experiment)}
-              className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-300 flex items-center gap-2 bg-white text-black border border-gray-200 hover:bg-gray-50 cursor-pointer"
-            >
-              <Pencil size={16} />
-              Edit
-            </button>
+          <button
+            onClick={() => onEdit(experiment)}
+            className={`${buttonBase} bg-white text-black border-gray-200 hover:bg-gray-50`}
+          >
+            <Pencil size={16} />
+            Edit
+          </button>
+        )}
 
-            <button
-              onClick={() => setIsDeleteModalOpen(true)}
-              className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-300 flex items-center gap-2 bg-white text-black border border-gray-200 hover:bg-rose-500 hover:text-white hover:border-rose-500 cursor-pointer"
-            >
-              <Trash2 size={16} />
-              Delete draft
-            </button>
-          </>
+        {/* Destroy: libera hardware reale. Azione distruttiva, in evidenza. */}
+        {destroyable && (
+          <button
+            onClick={() => setIsDestroyModalOpen(true)}
+            className={`${buttonBase} bg-rose-500 text-white border-rose-500 hover:bg-rose-600`}
+          >
+            <Trash2 size={16} />
+            Destroy
+          </button>
+        )}
+
+        {/* Delete: rimuove il documento. Innocuo, perché è ammesso solo quando
+            nulla è allocato, quindi resta uno stile neutro. */}
+        {removable && (
+          <button
+            onClick={() => setIsDeleteModalOpen(true)}
+            className={`${buttonBase} bg-white text-black border-gray-200 hover:bg-rose-500 hover:text-white hover:border-rose-500`}
+          >
+            <Trash2 size={16} />
+            {isDestroyed ? 'Remove' : 'Delete draft'}
+          </button>
         )}
       </div>
 
@@ -216,6 +274,17 @@ export default function ExperimentDetail({ experiment, onBack, onEdit, onDelete,
           onConfirm={(id) => {
             setIsDeleteModalOpen(false);
             onDelete(id);
+          }}
+        />
+      )}
+
+      {isDestroyModalOpen && (
+        <DestroyExperimentModal
+          experiment={experiment}
+          onClose={() => setIsDestroyModalOpen(false)}
+          onConfirm={(id) => {
+            setIsDestroyModalOpen(false);
+            onDestroy(id);
           }}
         />
       )}

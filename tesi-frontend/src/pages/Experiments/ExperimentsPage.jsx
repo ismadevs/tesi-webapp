@@ -6,6 +6,7 @@ import TopBar from './TopBar';
 import ExperimentsTable from './ExperimentsTable';
 import ExperimentDetail from './ExperimentDetail';
 import ExperimentFormModal from './ExperimentFormModal.jsx';
+import { STATUS } from './experimentStatus';
 
 const API_URL = 'http://localhost:3000/api/experiments';
 
@@ -63,6 +64,19 @@ export default function ExperimentsPage() {
   useEffect(() => {
     fetchExperiments();
   }, []);
+
+  // Attivo solo mentre l'orchestratore sta lavorando su qualcosa.
+  useEffect(() => {
+    const transient = [
+      STATUS.DEPLOY_REQUESTED, STATUS.DEPLOYING,
+      STATUS.DESTROY_REQUESTED, STATUS.DESTROYING,
+    ];
+
+    if (!experiments.some((e) => transient.includes(e.status))) return;
+
+    const timer = setInterval(fetchExperiments, 3000);
+    return () => clearInterval(timer);
+  }, [experiments]);
 
   // ==========================================
   // CREAZIONE E MODIFICA
@@ -122,6 +136,25 @@ export default function ExperimentsPage() {
     }
   };
 
+  // Libera hardware reale su SLICES. Il documento resta nell'elenco con stato
+  // DESTROYED: rimuoverlo è un'azione separata e successiva.
+  const handleDestroy = async (id) => {
+    try {
+      const response = await fetch(`${API_URL}/${id}/destroy`, { method: 'POST' });
+
+      if (!response.ok) {
+        toast.error(await readError(response, 'Unable to destroy the experiment.'));
+        return;
+      }
+
+      const updated = await response.json();
+      setExperiments((prev) => prev.map((e) => (e.id === id ? updated : e)));
+      toast.success('Destruction requested.');
+    } catch {
+      toast.error('Cannot reach the server.');
+    }
+  };
+
   // ==========================================
   // DUPLICAZIONE
   // ==========================================
@@ -175,6 +208,7 @@ export default function ExperimentsPage() {
           onEdit={(exp) => setFormTarget(exp)}
           onDelete={handleDelete}
           onDuplicate={handleDuplicate}
+          onDestroy={handleDestroy}
         />
       );
     }

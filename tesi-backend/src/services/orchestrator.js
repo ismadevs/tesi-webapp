@@ -392,12 +392,16 @@ const deployExperiment = async (experiment) => {
 // ==========================================
 // DISTRUZIONE DI UN ESPERIMENTO
 // ==========================================
-// `slices experiment delete --force` libera l'esperimento e tutte le risorse
-// che contiene: una sola invocazione al posto di una per macchina.
+// SLICES impone un ordine preciso: `experiment delete` NON cancella a cascata
+// e rifiuta la richiesta finché l'esperimento contiene macchine attive, con
+// l'errore "Experiment still has active resources".
 //
-// Il flag --force è obbligatorio da programma: senza, la CLI chiede una
-// conferma interattiva e il processo figlio resta appeso in attesa di un
-// input che non arriverà mai, senza errore né timeout.
+// La sequenza è quindi in tre fasi: liberare le risorse, attendere che
+// spariscano davvero dall'infrastruttura, eliminare il contenitore.
+//
+// La seconda fase è necessaria perché anche la distruzione è asincrona: il
+// comando ritorna subito, ma le macchine restano elencate per qualche istante.
+// Chiamare `experiment delete` troppo presto fallirebbe di nuovo.
 const destroyExperiment = async (experiment) => {
   const { _id: id, spec, remote } = experiment;
 
@@ -413,13 +417,40 @@ const destroyExperiment = async (experiment) => {
   await patchExperiment(id, { status: EXPERIMENT_STATUS.DESTROYING });
 
   try {
+    // ---- 1. Liberare le risorse ----
+    // Si legge l'elenco reale da SLICES invece di fidarsi dei documenti: è
+    // l'infrastruttura a decidere cosa esiste ancora, e i due potrebbero
+    // divergere se qualcosa fosse stato distrutto dalla CLI.
+    const remoteResources = await slicesService.listResources(remote.slicesExperimentId);
+    const names = remoteResources.map((r) => r.friendly_name);
+
+    if (names.length > 0) {
+      log(`Liberazione di ${names.length} risorse: ${names.join(', ')}`);
+
+      // Un'unica invocazione con tutti i nomi: `bi destroy` accetta più
+      // risorse di seguito.
+      await slicesService.destroyResources(remote.slicesExperimentId, names);
+
+      // ---- 2. Attendere che spariscano ----
+      const deadline = Date.now() + 120000;
+      while (Date.now() < deadline) {
+        await sleep(3000);
+
+        const remaining = await slicesService.listResources(remote.slicesExperimentId);
+        if (remaining.length === 0) break;
+
+        log(`Ancora ${remaining.length} risorse presenti, attendo`);
+      }
+    }
+
+    // ---- 3. Eliminare il contenitore ----
     await slicesService.deleteExperiment(remote.slicesExperimentId);
 
     const terminatedAt = new Date().toISOString();
 
-    // Tutte le risorse ancora vive vanno marcate come distrutte: su SLICES
-    // sono già sparite insieme all'esperimento, e lasciarle DEPLOYED
-    // significherebbe mostrare uno stato che non corrisponde più alla realtà.
+    // Tutte le risorse ancora vive nei documenti vanno marcate come distrutte:
+    // su SLICES sono già sparite, e lasciarle DEPLOYED significherebbe
+    // mostrare uno stato che non corrisponde più alla realtà.
     const resources = await db.queryDocs('resources', 'by_experiment', {
       startkey: [id],
       endkey: [id, {}],
@@ -444,7 +475,7 @@ const destroyExperiment = async (experiment) => {
       remote: { ...current.remote, deleted: true },
     });
 
-    log(`"${spec.name}" distrutto insieme a ${resources.length} risorse`);
+    log(`"${spec.name}" distrutto insieme a ${names.length} risorse`);
   } catch (error) {
     log(`Distruzione di "${spec.name}" fallita: ${error.message}`);
 

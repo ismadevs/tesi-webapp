@@ -153,12 +153,27 @@ const loadResourceCounts = async () => {
 // Il frontend conosce il campo `id`, non `_id`. Tradurre qui evita di
 // propagare la convenzione di CouchDB fino all'interfaccia, e permetterebbe
 // di cambiare database senza toccare React.
-const toApi = (doc, resourceCount = 0) => ({
-  ...doc,
-  id: doc._id,
-  isDeployed: doc.remote.slicesExperimentId !== null,
-  resourceCount,
-});
+const toApi = (doc, resourceCount = 0) => {
+  // La scadenza è una condizione derivata, non uno stato memorizzato: nessuno
+  // la scrive, si verifica al passare del tempo. Calcolarla alla lettura la
+  // rende esatta per costruzione, mentre un processo che aggiorna i documenti
+  // periodicamente lascerebbe lo stato sbagliato fra un controllo e l'altro.
+  //
+  // Resta distinta da DESTROYED, che indica una liberazione deliberata con un
+  // terminatedAt associato: sono cause diverse dello stesso esito.
+  const isExpired =
+    doc.status === EXPERIMENT_STATUS.DEPLOYED &&
+    doc.remote.expiresAt !== null &&
+    new Date(doc.remote.expiresAt) < new Date();
+
+  return {
+    ...doc,
+    id: doc._id,
+    isDeployed: doc.remote.slicesExperimentId !== null,
+    isExpired,
+    resourceCount,
+  };
+};
 
 const generateId = () => {
   const suffix = Math.random().toString(36).slice(2, 8);
