@@ -34,8 +34,7 @@ export default function LandingPage() {
 
           {/* text-gray-500 replica il color="text.secondary". font-medium è il fontWeight: 500. */}
           <h2 className="font-medium text-gray-500 text-2xl md:text-3xl">
-            Sviluppo di un'infrastruttura Cloud-Native per l'orchestrazione di
-            risorse
+            Sviluppo di una piattaforma web per l’orchestrazione dichiarativa di risorse cloud
           </h2>
         </div>
 

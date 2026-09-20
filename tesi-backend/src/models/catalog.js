@@ -37,15 +37,15 @@ export const INFRASTRUCTURES = [
     kind: 'vm',
     infra: 'be-gent1-bi-vm1',
     label: 'Virtual machine',
-    description: 'Istanza virtualizzata, allocata in pochi minuti.',
-    location: 'Gent, Belgio',
+    description: 'Virtualized instance, provisioned in minutes.',
+    location: 'Ghent, Belgium',
   },
   {
     kind: 'baremetal',
     infra: 'be-gent1-bi-baremetal1',
     label: 'Bare metal',
-    description: 'Server fisico dedicato, senza strato di virtualizzazione.',
-    location: 'Gent, Belgio',
+    description: 'Dedicated physical server, no virtualization layer.',
+    location: 'Ghent, Belgium',
   },
 ];
 

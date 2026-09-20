@@ -288,7 +288,6 @@ export default function ResourcesPage() {
     if (resources.length === 0) {
       return (
         <div className="flex items-center gap-3 text-gray-400 p-6 bg-gray-50 rounded-2xl border border-gray-100 border-dashed">
-          <Boxes size={20} />
           <p className="text-sm font-medium">
             {editable
               ? 'No resources in this experiment yet. Add the first one.'
